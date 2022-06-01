@@ -1,13 +1,13 @@
 #pragma once
 
-#include <QtCore/QCoreApplication>
+#include <QtWidgets/QApplication>
 
-class Application : public QCoreApplication
+class Application : public QApplication
 {
     Q_OBJECT;
 
 public:
-    using QCoreApplication::QCoreApplication;
+    using QApplication::QApplication;
 
 public slots:
     void onRun();
