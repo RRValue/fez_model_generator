@@ -7,8 +7,8 @@
 struct Geometry
 {
 	using Vertices = std::vector<Vertex>;
-	using Triangles = std::vector<size_t>;
+	using Indices = std::vector<size_t>;
 
 	Vertices m_Vertices;
-    Triangles m_Triangles;
+    Indices m_Indices;
 };

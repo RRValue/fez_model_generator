@@ -3,15 +3,23 @@
 #include "parser/ArtObjectParser.h"
 
 #include <QtCore/QStandardPaths>
+#include <QtCore/QDirIterator>
 
 #include <QtWidgets/QFileDialog>
 
 void Application::onRun()
 {
-    const auto file = QFileDialog::getOpenFileName(nullptr, "ArtObject", QStandardPaths::writableLocation(QStandardPaths::StandardLocation::DesktopLocation));
+    const auto path = QFileDialog::getExistingDirectory(nullptr, "ArtObject", QStandardPaths::writableLocation(QStandardPaths::StandardLocation::DesktopLocation));
 
-    ArtObjectParser parser;
-    parser.parse(file);
+    auto xml_iter = QDirIterator(path, {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
+
+    while(xml_iter.hasNext())
+    {
+        const auto file = xml_iter.next();
+
+        ArtObjectParser parser;
+        parser.parse(file);
+    }
 
     exit();
 }
