@@ -7,21 +7,25 @@
 
 #include <QtXml/QDomDocument>
 
-class ArtObjectParser
+class TrileSetParser
 {
 public:
-    ArtObjectParser();
-    ~ArtObjectParser();
+    TrileSetParser();
+    ~TrileSetParser();
 
     void parse(const QString& path) noexcept;
 
 private:
+    void parserTrile(const QDomElement& elem);
     void writeObj(const Geometry& geometry);
 
 private:
     QDomDocument m_Document;
     QString m_Name;
     QString m_Path;
+
+    QString m_SetName;
+    QString m_Key;
 
     GeometryParser m_GeomParser;
 };

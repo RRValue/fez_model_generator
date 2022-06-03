@@ -1,4 +1,4 @@
-#include "parser/ArtObjectParser.h"
+#include "parser/TrileSetParser.h"
 
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
@@ -9,15 +9,15 @@
 
 #include <qdebug.h>
 
-ArtObjectParser::ArtObjectParser() : m_Document{}
+TrileSetParser::TrileSetParser() : m_Document{}
 {
 }
 
-ArtObjectParser::~ArtObjectParser()
+TrileSetParser::~TrileSetParser()
 {
 }
 
-void ArtObjectParser::parse(const QString& path) noexcept
+void TrileSetParser::parse(const QString& path) noexcept
 {
     QFileInfo info(path);
 
@@ -58,20 +58,58 @@ void ArtObjectParser::parse(const QString& path) noexcept
     }
 
     // parse
-    const auto art_obj_elem = m_Document.firstChildElement("ArtObject");
+    const auto trile_set_elem = m_Document.firstChildElement("TrileSet");
 
-    if(art_obj_elem.isNull())
+    if(trile_set_elem.isNull())
         return;
 
-    const auto geometry = m_GeomParser.parseGeometry(art_obj_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
-
-    if(!geometry)
+    if(!trile_set_elem.hasAttribute("name"))
         return;
 
-    writeObj(*geometry);
+    m_SetName = trile_set_elem.attribute("name");
+
+    QDir set_dir(m_Path);
+
+    if(!set_dir.exists(m_SetName))
+        set_dir.mkdir(m_SetName);
+
+    const auto triles_elem = trile_set_elem.firstChildElement("Triles");
+
+    if(triles_elem.isNull())
+        return;
+
+    // count vertices
+    auto trile_entry_elem = triles_elem.firstChildElement("TrileEntry");
+
+    while(!trile_entry_elem.isNull())
+    {
+        if(!trile_entry_elem.hasAttribute("key"))
+            return;
+
+        m_Key = trile_entry_elem.attribute("key");
+
+        const auto trile_elem = trile_entry_elem.firstChildElement("Trile");
+
+        if(trile_elem.isNull())
+            return;
+
+        const auto geom_elem = trile_elem.firstChildElement("Geometry");
+
+        if(geom_elem.isNull())
+            return;
+
+        const auto geometry = m_GeomParser.parseGeometry(geom_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
+
+        if(!geometry)
+            return;
+
+        writeObj(*geometry);
+
+        trile_entry_elem = trile_entry_elem.nextSiblingElement();
+    }
 }
 
-void ArtObjectParser::writeObj(const Geometry& geometry)
+void TrileSetParser::writeObj(const Geometry& geometry)
 {
     // allocate
     aiScene* scene = new aiScene();
@@ -147,7 +185,7 @@ void ArtObjectParser::writeObj(const Geometry& geometry)
     Assimp::Exporter exporter;
     aiReturn success;
 
-    success = exporter.Export(scene, "obj", m_Path.toStdString() + "/" + m_Name.toStdString() + ".obj");
+    success = exporter.Export(scene, "obj", m_Path.toStdString() + "/" + m_SetName.toStdString() + "/" + m_Key.toStdString() + ".obj");
 
     if(success != aiReturn_SUCCESS)
     {
@@ -157,7 +195,7 @@ void ArtObjectParser::writeObj(const Geometry& geometry)
     }
 
     QFile texture(m_Path + "/../" + m_Name + ".png");
-    texture.copy(m_Path + "/" + m_Name + ".png");
+    texture.copy(m_Path + "/" + m_SetName + "/" + m_Name + ".png");
 
     // clear
     delete[] scene->mRootNode->mMeshes;
