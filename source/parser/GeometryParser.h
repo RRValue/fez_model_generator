@@ -1,29 +1,21 @@
 #pragma once
 
-#include "geom/Geometry.h"
-
 #include <QtCore/QString>
 
 #include <QtXml/QDomDocument>
 
+class aiMesh;
+class aiMaterial;
+
 class GeometryParser
 {
-    using GeometryResult = std::optional<Geometry>;
-    using VerticesResult = std::optional<Geometry::Vertices>;
-    using IndicesResult = std::optional<Geometry::Indices>;
-
 public:
     GeometryParser();
     ~GeometryParser();
 
-    GeometryResult parseGeometry(const QDomElement& elem);
+    bool parseGeometry(const QDomElement& elem, aiMesh* mesh, aiMaterial* material, const QString& textureName);
 
 private:
-    VerticesResult parseVertices(const QDomElement& elem);
-    IndicesResult parseIndices(const QDomElement& elem);
-
-private:
-    QDomDocument m_Document;
-    QString m_Name;
-    QString m_Path;
+    bool parseVertices(const QDomElement& elem, aiMesh* mesh);
+    bool parseIndices(const QDomElement& elem, aiMesh* mesh);
 };

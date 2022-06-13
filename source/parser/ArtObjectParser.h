@@ -7,6 +7,10 @@
 
 #include <QtXml/QDomDocument>
 
+class aiScene;
+class aiMesh;
+class aiMaterial;
+
 class ArtObjectParser
 {
 public:
@@ -16,12 +20,19 @@ public:
     void parse(const QString& path) noexcept;
 
 private:
-    void writeObj(const Geometry& geometry);
+    void writeObj();
+
+    aiMesh* allocateMesh();
+    aiMaterial* allocateMaterial();
+
+    void deallocateScene();
 
 private:
     QDomDocument m_Document;
     QString m_Name;
     QString m_Path;
+
+    aiScene* m_Scene;
 
     GeometryParser m_GeomParser;
 };
