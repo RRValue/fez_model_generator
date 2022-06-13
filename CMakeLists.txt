@@ -36,12 +36,12 @@ TARGET_INCLUDE_DIRECTORIES(FezModelGenerator PUBLIC ${PROJECT_SRC_PATH})
 TARGET_INCLUDE_DIRECTORIES(FezModelGenerator PUBLIC ${DepDir}/eigen/include/eigen3)
 TARGET_INCLUDE_DIRECTORIES(FezModelGenerator PUBLIC ${DepDir}/assimp/include)
 
-TARGET_LINK_LIBRARIES(FezModelGenerator PRIVATE debug     ${DepDir}/assimp/lib/assimp-vc141-mtd.lib)
-TARGET_LINK_LIBRARIES(FezModelGenerator PRIVATE optimized ${DepDir}/assimp/lib/assimp-vc141-mt.lib)
+TARGET_LINK_LIBRARIES(FezModelGenerator PRIVATE debug     ${DepDir}/assimp/lib/assimp-vc143-mtd.lib)
+TARGET_LINK_LIBRARIES(FezModelGenerator PRIVATE optimized ${DepDir}/assimp/lib/assimp-vc143-mt.lib)
 TARGET_LINK_LIBRARIES(FezModelGenerator PRIVATE Qt6::Core Qt6::Widgets Qt6::Xml)
 
-FILE(INSTALL ${DepDir}/assimp/bin/assimp-vc141-mtd.dll DESTINATION ${PROJECT_BIN_PATH}/debug)
-FILE(INSTALL ${DepDir}/assimp/bin/assimp-vc141-mt.dll  DESTINATION ${PROJECT_BIN_PATH}/release)
+FILE(INSTALL ${DepDir}/assimp/bin/assimp-vc143-mtd.dll DESTINATION ${PROJECT_BIN_PATH}/debug)
+FILE(INSTALL ${DepDir}/assimp/bin/assimp-vc143-mt.dll  DESTINATION ${PROJECT_BIN_PATH}/release)
 
 IF(MSVC)
     SET_TARGET_PROPERTIES(FezModelGenerator PROPERTIES PDB_OUTPUT_DIRECTORY ${PROJECT_BIN_PATH})
