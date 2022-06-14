@@ -120,7 +120,7 @@ void GeometryWriter::writeObj(const Geometry& geometry)
     }
 
     // load material
-    aiString fileName(geometry.m_TextureName.toStdString() + ".png");
+    aiString fileName(geometry.m_TextureName.toStdString());
     material->AddProperty(&fileName, AI_MATKEY_NAME);
     material->AddProperty(&fileName, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0));
 
@@ -136,4 +136,7 @@ void GeometryWriter::writeObj(const Geometry& geometry)
 
         return;
     }
+
+    QFile texture(geometry.m_TextureOrgFile);
+    texture.copy(m_Path + "/" + geometry.m_TextureName);
 }

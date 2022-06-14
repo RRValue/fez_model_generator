@@ -1,7 +1,6 @@
 #pragma once
 
 #include "geom/Geometry.h"
-#include "parser/GeometryParser.h"
 
 #include <QtCore/QString>
 
@@ -9,15 +8,23 @@
 
 class TrileSetParser
 {
+    using GeometryResult = std::optional<Geometry>;
+    using GeometryResults = std::list<Geometry>;
+
 public:
     TrileSetParser();
     ~TrileSetParser();
 
-    void parse(const QString& path) noexcept;
+    GeometryResults parse(const QString& path) noexcept;
 
 private:
-    void parserTrile(const QDomElement& elem);
+    GeometryResult parserTrile(const QDomElement& elem);
 
 private:
     QDomDocument m_Document;
+
+    QString m_OrgPath;
+    QString m_SetName;
+    QString m_Name;
+    QString m_OutPath;
 };

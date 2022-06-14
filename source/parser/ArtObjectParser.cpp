@@ -1,7 +1,6 @@
 #include "parser/ArtObjectParser.h"
 
 #include "parser/GeometryParser.h"
-#include "writer/GeometryWriter.h"
 
 #include <QtCore/QDir>
 #include <QtCore/QFile>
@@ -17,14 +16,14 @@ ArtObjectParser::~ArtObjectParser()
 {
 }
 
-void ArtObjectParser::parse(const QString& path) noexcept
+ArtObjectParser::GeometryResult ArtObjectParser::parse(const QString& path) noexcept
 {
     qDebug() << "parsing: " << path;
 
     QFileInfo info(path);
 
     if(!info.exists())
-        return;
+        return {};
 
     static const auto out_folder_name = "exported";
 
@@ -44,10 +43,10 @@ void ArtObjectParser::parse(const QString& path) noexcept
     auto xml_file = QFile(path);
 
     if(!xml_file.exists())
-        return;
+        return {};
 
     if(!xml_file.open(QIODevice::OpenModeFlag::ReadOnly))
-        return;
+        return {};
 
     QString error_msg;
     int error_line;
@@ -57,25 +56,24 @@ void ArtObjectParser::parse(const QString& path) noexcept
     {
         qDebug() << "Error: \"" + error_msg + "\" at line: " + QString::number(error_line) + " Columns: " + QString::number(error_column);
 
-        return;
+        return {};
     }
 
     // parse
     const auto art_obj_elem = m_Document.firstChildElement("ArtObject");
 
     if(art_obj_elem.isNull())
-        return;
+        return {};
 
     auto geometry = GeometryParser().parseGeometry(art_obj_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
 
     if(!geometry)
-        return;
+        return {};
 
     geometry->m_Name = name;
-    geometry->m_TextureName = name;
+    geometry->m_TextureName = name + ".png";
+    geometry->m_TextureOrgFile = org_path + "/" + name + ".png";
+    geometry->m_OutPath = out_path;
 
-    GeometryWriter(out_path).writeObj(*geometry);
-
-    QFile texture(org_path + "/" + name + ".png");
-    texture.copy(out_path + "/" + name + ".png");
+    return geometry;
 }

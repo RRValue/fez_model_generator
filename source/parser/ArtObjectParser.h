@@ -11,11 +11,13 @@ struct aiMaterial;
 
 class ArtObjectParser
 {
+    using GeometryResult = std::optional<Geometry>;
+
 public:
     ArtObjectParser();
     ~ArtObjectParser();
 
-    void parse(const QString& path) noexcept;
+    GeometryResult parse(const QString& path) noexcept;
 
 private:
     QDomDocument m_Document;

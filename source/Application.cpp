@@ -1,29 +1,55 @@
 #include "Application.h"
 
 #include "parser/ArtObjectParser.h"
+#include "parser/TrileSetParser.h"
+#include "writer/GeometryWriter.h"
 
 #include <QtCore/QDirIterator>
 #include <QtCore/QStandardPaths>
 
 #include <QtWidgets/QFileDialog>
 
+using Geometries = std::list<Geometry>;
+
 void Application::onRun()
 {
     const auto path =
-        QFileDialog::getExistingDirectory(nullptr, "ArtObject", QStandardPaths::writableLocation(QStandardPaths::StandardLocation::DesktopLocation));
+        QFileDialog::getExistingDirectory(nullptr, "Export", QStandardPaths::writableLocation(QStandardPaths::StandardLocation::DesktopLocation));
 
-    auto xml_iter = QDirIterator(path, {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
+    auto ao_xml_iter = QDirIterator(path + "/art objects", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
+    auto ts_xml_iter = QDirIterator(path + "/trile sets", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
-    while(xml_iter.hasNext())
+    Geometries geometries;
+
+    while(ao_xml_iter.hasNext())
     {
-        const auto file = xml_iter.next();
+        const auto file = ao_xml_iter.next();
 
         ArtObjectParser parser;
-        parser.parse(file);
+        auto result = parser.parse(file);
+
+        if(result)
+            geometries.push_back(std::move(*result));
     }
 
-    /*ArtObjectParser parser;
-    parser.parse("C:/Users/pkruttke/Desktop/fez_data/export/art objects/fractal_globeao.xml");*/
+    while(ts_xml_iter.hasNext())
+    {
+        const auto file = ts_xml_iter.next();
+
+        TrileSetParser parser;
+        auto result = parser.parse(file);
+
+        for(auto& r : result)
+            geometries.push_back(std::move(r));
+    }
+
+    for(const auto& r : geometries)
+    {
+        qDebug() << "Write: " << r.m_Name << " to " << r.m_OutPath;
+
+        GeometryWriter(r.m_OutPath).writeObj(r);
+    }
+
 
     exit();
 }

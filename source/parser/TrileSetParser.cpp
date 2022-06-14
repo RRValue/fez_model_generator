@@ -1,6 +1,6 @@
 #include "parser/TrileSetParser.h"
 
-#include "writer/GeometryWriter.h"
+#include "parser/GeometryParser.h"
 
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
@@ -14,37 +14,37 @@ TrileSetParser::~TrileSetParser()
 {
 }
 
-void TrileSetParser::parse(const QString& path) noexcept
+TrileSetParser::GeometryResults TrileSetParser::parse(const QString& path) noexcept
 {
     qDebug() << "parsing: " << path;
 
     QFileInfo info(path);
 
     if(!info.exists())
-        return;
+        return {};
 
     static const auto out_folder_name = "exported";
 
-    const auto name = info.baseName();
-    const auto org_path = info.absolutePath();
-    auto out_path = info.absolutePath();
+    m_Name = info.baseName();
+    m_OrgPath = info.absolutePath();
+    m_OutPath = info.absolutePath();
     m_Document.clear();
 
-    QDir dir(out_path);
+    QDir dir(m_OutPath);
 
     if(!dir.exists(out_folder_name))
         dir.mkdir(out_folder_name);
 
-    out_path = out_path + "/" + out_folder_name;
+    m_OutPath = m_OutPath + "/" + out_folder_name;
 
     // load
     auto xml_file = QFile(path);
 
     if(!xml_file.exists())
-        return;
+        return {};
 
     if(!xml_file.open(QIODevice::OpenModeFlag::ReadOnly))
-        return;
+        return {};
 
     QString error_msg;
     int error_line;
@@ -54,64 +54,74 @@ void TrileSetParser::parse(const QString& path) noexcept
     {
         qDebug() << "Error: \"" + error_msg + "\" at line: " + QString::number(error_line) + " Columns: " + QString::number(error_column);
 
-        return;
+        return {};
     }
 
     // parse
     const auto trile_set_elem = m_Document.firstChildElement("TrileSet");
 
     if(trile_set_elem.isNull())
-        return;
+        return {};
 
     if(!trile_set_elem.hasAttribute("name"))
-        return;
+        return {};
 
-    const auto set_name = trile_set_elem.attribute("name");
+    m_SetName = trile_set_elem.attribute("name");
 
-    QDir set_dir(out_path);
+    QDir set_dir(m_OutPath);
 
-    if(!set_dir.exists(set_name))
-        set_dir.mkdir(set_name);
+    if(!set_dir.exists(m_SetName))
+        set_dir.mkdir(m_SetName);
 
     const auto triles_elem = trile_set_elem.firstChildElement("Triles");
 
     if(triles_elem.isNull())
-        return;
+        return {};
 
-    // count vertices
     auto trile_entry_elem = triles_elem.firstChildElement("TrileEntry");
+
+    GeometryResults results;
 
     while(!trile_entry_elem.isNull())
     {
-        if(!trile_entry_elem.hasAttribute("key"))
-            return;
+        auto result = parserTrile(trile_entry_elem);
 
-        const auto key = trile_entry_elem.attribute("key");
-        const auto trile_elem = trile_entry_elem.firstChildElement("Trile");
-
-        qDebug() << "\t: " << key;
-
-        if(trile_elem.isNull())
-            return;
-
-        const auto geom_elem = trile_elem.firstChildElement("Geometry");
-
-        if(geom_elem.isNull())
-            return;
-
-        auto geometry = GeometryParser().parseGeometry(geom_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
-
-        if(!geometry)
-            return;
-
-        geometry->m_Name = set_name + "/" + key;
-        geometry->m_TextureName = set_name;
-
-        GeometryWriter(out_path).writeObj(*geometry);
-
-        QFile texture(org_path + "/" + name + ".png");
-        texture.copy(out_path + "/" + set_name + "/" + name + ".png");
+        if(result)
+            results.push_back(std::move(*result));
 
         trile_entry_elem = trile_entry_elem.nextSiblingElement();
     }
+
+    return results;
+}
+
+TrileSetParser::GeometryResult TrileSetParser::parserTrile(const QDomElement& elem)
+{
+    if(!elem.hasAttribute("key"))
+        return {};
+
+    const auto key = elem.attribute("key");
+    const auto trile_elem = elem.firstChildElement("Trile");
+
+    qDebug() << "\t: " << key;
+
+    if(trile_elem.isNull())
+        return {};
+
+    const auto geom_elem = trile_elem.firstChildElement("Geometry");
+
+    if(geom_elem.isNull())
+        return {};
+
+    auto geometry = GeometryParser().parseGeometry(geom_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
+
+    if(!geometry)
+        return {};
+
+    geometry->m_Name = key;
+    geometry->m_TextureName = m_SetName + ".png";
+    geometry->m_TextureOrgFile = m_OrgPath + "/" + m_Name + ".png";
+    geometry->m_OutPath = m_OutPath + "/" + m_SetName;
+
+    return geometry;
 }
