@@ -17,15 +17,7 @@ public:
 
 private:
     void parserTrile(const QDomElement& elem);
-    void writeObj(const Geometry& geometry);
 
 private:
     QDomDocument m_Document;
-    QString m_Name;
-    QString m_Path;
-
-    QString m_SetName;
-    QString m_Key;
-
-    GeometryParser m_GeomParser;
 };

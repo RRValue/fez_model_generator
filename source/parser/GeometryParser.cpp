@@ -1,7 +1,5 @@
 #include "parser/GeometryParser.h"
 
-#include "math/Vector.h"
-
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
@@ -11,7 +9,7 @@
 
 #include <qdebug.h>
 
-GeometryParser::GeometryParser()
+GeometryParser::GeometryParser() : m_Document{}
 {
 }
 
@@ -19,27 +17,35 @@ GeometryParser::~GeometryParser()
 {
 }
 
-bool GeometryParser::parseGeometry(const QDomElement& elem, aiMesh* mesh, aiMaterial* material, const QString& textureName)
+GeometryParser::GeometryResult GeometryParser::parseGeometry(const QDomElement& elem)
 {
     if(elem.isNull() || elem.nodeName() != "ShaderInstancedIndexedPrimitives")
-        return false;
+        return {};
 
-    if(!parseVertices(elem.firstChildElement("Vertices"), mesh))
-        return false;
+    auto vertices = parseVertices(elem.firstChildElement("Vertices"));
 
-    if(!parseIndices(elem.firstChildElement("Indices"), mesh))
-        return false;
+    if(!vertices)
+        return {};
 
-    // load material
-    aiString fileName(textureName.toStdString() + ".png");
-    material->AddProperty(&fileName, AI_MATKEY_NAME);
-    material->AddProperty(&fileName, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0));
+    auto indices = parseIndices(elem.firstChildElement("Indices"));
 
-    return true;
+    if(!indices)
+        return {};
+
+    Geometry result;
+    result.m_Vertices = std::move(*vertices);
+    result.m_Indices = std::move(*indices);
+
+    return result;
 }
 
-bool GeometryParser::parseVertices(const QDomElement& elem, aiMesh* mesh)
+GeometryParser::VerticesResult GeometryParser::parseVertices(const QDomElement& elem)
 {
+    if(elem.isNull())
+        return {};
+
+    VerticesResult::value_type result;
+
     // count vertices
     auto vertex_elem = elem.firstChildElement("VertexPositionNormalTextureInstance");
     auto vertex_count = size_t(0);
@@ -51,13 +57,7 @@ bool GeometryParser::parseVertices(const QDomElement& elem, aiMesh* mesh)
         vertex_elem = vertex_elem.nextSiblingElement();
     }
 
-    if(vertex_count == 0)
-        return false;
-
-    mesh->mNumVertices = (unsigned int)vertex_count;
-    mesh->mVertices = new aiVector3D[vertex_count];
-    mesh->mNormals = new aiVector3D[vertex_count];
-    mesh->mTextureCoords[0] = new aiVector3D[vertex_count];
+    result.resize(vertex_count);
 
     // set vertices
     vertex_elem = elem.firstChildElement("VertexPositionNormalTextureInstance");
@@ -70,34 +70,36 @@ bool GeometryParser::parseVertices(const QDomElement& elem, aiMesh* mesh)
         const auto texture_coord_elem = vertex_elem.firstChildElement("TextureCoord");
 
         if(position_elem.isNull() || normal_elem.isNull() || texture_coord_elem.isNull())
-            return false;
+            return {};
+
+        auto& vertex = result[vertex_count];
 
         // position
         const auto vec3_elem = position_elem.firstChildElement("Vector3");
 
         if(vec3_elem.isNull())
-            return false;
+            return {};
 
         if(!vec3_elem.hasAttribute("x") || !vec3_elem.hasAttribute("y") || !vec3_elem.hasAttribute("z"))
-            return false;
+            return {};
 
         auto x_ok = false;
         auto y_ok = false;
         auto z_ok = false;
 
-        mesh->mVertices[vertex_count] = aiVector3D{vec3_elem.attribute("x").toFloat(&x_ok),  //
-                                                   vec3_elem.attribute("y").toFloat(&y_ok),  //
-                                                   vec3_elem.attribute("z").toFloat(&z_ok)};
+        vertex.m_Position.x() = vec3_elem.attribute("x").toFloat(&x_ok);
+        vertex.m_Position.y() = vec3_elem.attribute("y").toFloat(&y_ok);
+        vertex.m_Position.z() = vec3_elem.attribute("z").toFloat(&z_ok);
 
         if(!x_ok || !y_ok || !z_ok)
-            return false;
+            return {};
 
         // normal
         auto side_index_ok = false;
         const auto side_index = normal_elem.text().toInt(&side_index_ok);
 
         if(!side_index_ok)
-            return false;
+            return {};
 
         static const auto pos_x = Vec3f{1, 0, 0};
         static const auto pos_y = Vec3f{0, 1, 0};
@@ -106,69 +108,59 @@ bool GeometryParser::parseVertices(const QDomElement& elem, aiMesh* mesh)
         static const auto neg_y = Vec3f{0, -1, 0};
         static const auto neg_z = Vec3f{0, 0, -1};
 
-        Vec3f normal;
-
         switch(side_index)
         {
-            case 0: normal = pos_x; break;
-            case 1: normal = pos_y; break;
-            case 2: normal = pos_z; break;
-            case 3: normal = neg_x; break;
-            case 4: normal = neg_y; break;
-            case 5: normal = neg_z; break;
-            default: return false;
+            case 0: vertex.m_Normal = pos_x; break;
+            case 1: vertex.m_Normal = pos_y; break;
+            case 2: vertex.m_Normal = pos_z; break;
+            case 3: vertex.m_Normal = neg_x; break;
+            case 4: vertex.m_Normal = neg_y; break;
+            case 5: vertex.m_Normal = neg_z; break;
+            default: return {};
         }
-
-        mesh->mNormals[vertex_count] = aiVector3D{normal.x(),  //
-                                                  normal.y(),  //
-                                                  normal.z()};
 
         // texture coordinate
         const auto vec2_elem = texture_coord_elem.firstChildElement("Vector2");
 
         if(vec2_elem.isNull())
-            return false;
+            return {};
 
         if(!vec2_elem.hasAttribute("x") || !vec2_elem.hasAttribute("y"))
-            return false;
+            return {};
 
         x_ok = false;
         y_ok = false;
 
-        Vec2f tex_coord = Vec2f::Zero();
-
-        tex_coord.x() = vec2_elem.attribute("x").toFloat(&x_ok);
-        tex_coord.y() = 1.0f - vec2_elem.attribute("y").toFloat(&y_ok);
+        vertex.m_TextureCoordinate.x() = vec2_elem.attribute("x").toFloat(&x_ok);
+        vertex.m_TextureCoordinate.y() = 1.0f - vec2_elem.attribute("y").toFloat(&y_ok);
 
         switch(side_index)
         {
             case 0: break;
-            case 1: tex_coord.x() += 1.0; break;
-            case 2: tex_coord.x() += 2.0; break;
-            case 3: tex_coord.x() += 3.0; break;
-            case 4: tex_coord.x() += 4.0; break;
-            case 5: tex_coord.x() += 5.0; break;
+            case 1: vertex.m_TextureCoordinate.x() += 1.0; break;
+            case 2: vertex.m_TextureCoordinate.x() += 2.0; break;
+            case 3: vertex.m_TextureCoordinate.x() += 3.0; break;
+            case 4: vertex.m_TextureCoordinate.x() += 4.0; break;
+            case 5: vertex.m_TextureCoordinate.x() += 5.0; break;
             default: break;
         }
 
-        mesh->mTextureCoords[0][vertex_count] = aiVector3D{tex_coord.x(),  //
-                                                           tex_coord.y(),  //
-                                                           0};
-
         if(!x_ok || !y_ok)
-            return false;
+            return {};
 
         vertex_count++;
         vertex_elem = vertex_elem.nextSiblingElement();
     }
 
-    return true;
+    return result;
 }
 
-bool GeometryParser::parseIndices(const QDomElement& elem, aiMesh* mesh)
+GeometryParser::IndicesResult GeometryParser::parseIndices(const QDomElement& elem)
 {
     if(elem.isNull())
-        return false;
+        return {};
+
+    IndicesResult::value_type result;
 
     // count indices
     auto index_elem = elem.firstChildElement("Index");
@@ -181,37 +173,26 @@ bool GeometryParser::parseIndices(const QDomElement& elem, aiMesh* mesh)
         index_elem = index_elem.nextSiblingElement();
     }
 
-    if(index_count % 3 != 0)
-        return false;
+    result.resize(index_count);
 
-    mesh->mNumFaces = (unsigned int)(index_count / 3);
-    mesh->mFaces = new aiFace[mesh->mNumFaces];
-    
+    if(index_count % 3 != 0)
+        return {};
+
     // set indices
     index_elem = elem.firstChildElement("Index");
     index_count = size_t(0);
-    
+
     while(!index_elem.isNull())
     {
         auto index_ok = false;
-        const auto index = index_elem.text().toInt(&index_ok);
+        result[index_count] = index_elem.text().toInt(&index_ok);
 
         if(!index_ok)
-            return false;
-
-        auto& face = mesh->mFaces[index_count / 3];
-
-        if(index_count % 3 == 0)
-        {
-            face.mNumIndices = 3;
-            face.mIndices = new unsigned int[3];
-        }
-
-        face.mIndices[index_count % 3] = index;
+            return {};
 
         index_count++;
         index_elem = index_elem.nextSiblingElement();
     }
 
-    return true;
+    return result;
 }

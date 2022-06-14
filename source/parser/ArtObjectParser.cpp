@@ -1,94 +1,26 @@
 #include "parser/ArtObjectParser.h"
 
+#include "parser/GeometryParser.h"
+#include "writer/GeometryWriter.h"
+
+#include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
-#include <QtCore/QDir>
-
-#include <assimp/scene.h>
-#include <assimp/Exporter.hpp>
 
 #include <qdebug.h>
 
-ArtObjectParser::ArtObjectParser() : m_Document{}, m_Scene{new aiScene()}
+ArtObjectParser::ArtObjectParser() : m_Document{}
 {
-    m_Scene->mNumMeshes = 0;
-    m_Scene->mNumMaterials = 0;
-
-    m_Scene->mRootNode = new aiNode();
-    m_Scene->mRootNode->mTransformation = aiMatrix4x4({1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1});
-    m_Scene->mRootNode->mNumMeshes = 1;
-    m_Scene->mRootNode->mMeshes = new unsigned int[1];
-    m_Scene->mRootNode->mMeshes[0] = 0;
 }
 
 ArtObjectParser::~ArtObjectParser()
 {
-    deallocateScene();
-}
-
-aiMesh* ArtObjectParser::allocateMesh()
-{
-    const auto old_num_meshes = m_Scene->mNumMeshes;
-    const auto new_num_meshes = ++m_Scene->mNumMeshes;
-    const auto meshes = new aiMesh*[new_num_meshes];
-
-    if(old_num_meshes != 0)
-    {
-        memcpy(meshes, m_Scene->mMeshes, sizeof(aiMesh*) * old_num_meshes);
-
-        delete[] m_Scene->mMeshes;
-    }
-
-    m_Scene->mMeshes = meshes;
-
-    meshes[new_num_meshes - 1] = new aiMesh();
-    meshes[new_num_meshes - 1]->mMaterialIndex = 0;
-
-    return meshes[new_num_meshes - 1];
-}
-
-aiMaterial* ArtObjectParser::allocateMaterial()
-{
-    const auto old_num_materials = m_Scene->mNumMaterials;
-    const auto new_num_materials = ++m_Scene->mNumMaterials;
-    const auto materials = new aiMaterial*[new_num_materials];
-
-    if(old_num_materials != 0)
-    {
-        memcpy(materials, m_Scene->mMaterials, sizeof(aiMaterial*) * old_num_materials);
-
-        delete[] m_Scene->mMaterials;
-    }
-
-    m_Scene->mMaterials = materials;
-
-    materials[new_num_materials - 1] = new aiMaterial();
-
-    return materials[new_num_materials - 1];
-}
-
-void ArtObjectParser::deallocateScene()
-{
-    // delete meshes interna
-    for(size_t i = 0; i < m_Scene->mNumMeshes; i++)
-        delete m_Scene->mMeshes[i];
-
-    // delete array of meshes
-    delete[] m_Scene->mMeshes;
-
-    // delete materials interna
-    for(size_t i = 0; i < m_Scene->mNumMaterials; i++)
-        delete m_Scene->mMaterials[i];
-
-    // delete array of materials
-    delete[] m_Scene->mMaterials;
-
-    // delete root node
-    delete m_Scene->mRootNode;
 }
 
 void ArtObjectParser::parse(const QString& path) noexcept
 {
+    qDebug() << "parsing: " << path;
+
     QFileInfo info(path);
 
     if(!info.exists())
@@ -96,16 +28,17 @@ void ArtObjectParser::parse(const QString& path) noexcept
 
     static const auto out_folder_name = "exported";
 
-    m_Name = info.baseName();
-    m_Path = info.absolutePath();
+    const auto name = info.baseName();
+    const auto org_path = info.absolutePath();
+    auto out_path = info.absolutePath();
     m_Document.clear();
 
-    QDir dir(m_Path);
+    QDir dir(out_path);
 
     if(!dir.exists(out_folder_name))
         dir.mkdir(out_folder_name);
 
-    m_Path = m_Path + "/" + out_folder_name;
+    out_path = out_path + "/" + out_folder_name;
 
     // load
     auto xml_file = QFile(path);
@@ -133,30 +66,16 @@ void ArtObjectParser::parse(const QString& path) noexcept
     if(art_obj_elem.isNull())
         return;
 
-    const auto mesh = allocateMesh();
-    const auto material = allocateMaterial();
+    auto geometry = GeometryParser().parseGeometry(art_obj_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
 
-    if(!m_GeomParser.parseGeometry(art_obj_elem.firstChildElement("ShaderInstancedIndexedPrimitives"), mesh, material, m_Name))
+    if(!geometry)
         return;
 
-    writeObj();
-}
+    geometry->m_Name = name;
+    geometry->m_TextureName = name;
 
-void ArtObjectParser::writeObj()
-{
-    // save
-    Assimp::Exporter exporter;
-    aiReturn success;
+    GeometryWriter(out_path).writeObj(*geometry);
 
-    success = exporter.Export(m_Scene, "obj", m_Path.toStdString() + "/" + m_Name.toStdString() + ".obj");
-
-    if(success != aiReturn_SUCCESS)
-    {
-        std::string export_error_string(exporter.GetErrorString());
-
-        return;
-    }
-
-    QFile texture(m_Path + "/../" + m_Name + ".png");
-    texture.copy(m_Path + "/" + m_Name + ".png");
+    QFile texture(org_path + "/" + name + ".png");
+    texture.copy(out_path + "/" + name + ".png");
 }
