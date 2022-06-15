@@ -1,0 +1,301 @@
+#include "parser/LevelParser.h"
+
+#include "parser/GeometryParser.h"
+
+#include <QtCore/QDir>
+#include <QtCore/QFile>
+#include <QtCore/QFileInfo>
+
+#include <qdebug.h>
+
+LevelParser::LevelParser() : m_Document{}
+{
+}
+
+LevelParser::~LevelParser()
+{
+}
+
+void LevelParser::parse(const QString& path) noexcept
+{
+    qDebug() << "parsing: " << path;
+
+    QFileInfo info(path);
+
+    if(!info.exists())
+        return;
+
+    static const auto out_folder_name = "exported";
+
+    const auto name = info.baseName();
+    const auto org_path = info.absolutePath();
+    auto out_path = info.absolutePath();
+    m_Document.clear();
+
+    QDir dir(out_path);
+
+    if(!dir.exists(out_folder_name))
+        dir.mkdir(out_folder_name);
+
+    out_path = out_path + "/" + out_folder_name;
+
+    // load
+    auto xml_file = QFile(path);
+
+    if(!xml_file.exists())
+        return;
+
+    if(!xml_file.open(QIODevice::OpenModeFlag::ReadOnly))
+        return;
+
+    QString error_msg;
+    int error_line;
+    int error_column;
+
+    if(!m_Document.setContent(&xml_file, &error_msg, &error_line, &error_column))
+    {
+        qDebug() << "Error: \"" + error_msg + "\" at line: " + QString::number(error_line) + " Columns: " + QString::number(error_column);
+
+        return;
+    }
+
+    // parse
+    const auto level_elem = m_Document.firstChildElement("Level");
+
+    if(level_elem.isNull())
+        return;
+
+    if(!level_elem.hasAttribute("trileSetName"))
+        return;
+
+    m_TrileSetName = level_elem.attribute("trileSetName");
+
+    // Size
+    // StartingPosition
+    // Volumes
+    // Scripts
+    // Triles
+    m_TrileEmplacements = readTrileEmplacements(level_elem);
+    // ArtObjects
+    m_ArtObjects = readArtObjects(level_elem);
+    // BackgroundPlanes
+    // Groups
+    // NonplayerCharacters
+    // Paths
+    // MutedLoops
+    // AmbienceTracks
+
+    return;
+}
+
+LevelParser::TrileEmplacements LevelParser::readTrileEmplacements(const QDomElement& elem)
+{
+    // read TrileEmplacement
+    const auto triles_elem = elem.firstChildElement("Triles");
+
+    if(triles_elem.isNull())
+        return {};
+
+    // count emplacements
+    auto entry_elem = triles_elem.firstChildElement("Entry");
+    auto entry_count = size_t(0);
+
+    while(!entry_elem.isNull())
+    {
+        entry_count++;
+
+        entry_elem = entry_elem.nextSiblingElement();
+    }
+
+    auto result = TrileEmplacements(entry_count);
+
+    // set emplacements
+    entry_elem = triles_elem.firstChildElement("Entry");
+    entry_count = size_t(0);
+
+    while(!entry_elem.isNull())
+    {
+        auto trile_emplacement = TrileEmplacement();
+
+        // read TrileEmplacement
+        const auto emplacemant_elem = entry_elem.firstChildElement("TrileEmplacement");
+
+        if(emplacemant_elem.isNull())
+            return {};
+
+        if(!emplacemant_elem.hasAttribute("x") || !emplacemant_elem.hasAttribute("y") || !emplacemant_elem.hasAttribute("z"))
+            return {};
+
+        auto x_ok = false;
+        auto y_ok = false;
+        auto z_ok = false;
+
+        trile_emplacement.m_Emplacement = {emplacemant_elem.attribute("x").toFloat(&x_ok),  //
+                                           emplacemant_elem.attribute("y").toFloat(&y_ok),  //
+                                           emplacemant_elem.attribute("z").toFloat(&z_ok)};
+
+        if(!x_ok || !y_ok || !z_ok)
+            return {};
+
+        // read TrileInstance
+        const auto trile_instance_elem = entry_elem.firstChildElement("TrileInstance");
+
+        if(trile_instance_elem.isNull())
+            return {};
+
+        if(!trile_instance_elem.hasAttribute("trileId") || !trile_instance_elem.hasAttribute("orientation"))
+            return {};
+
+        auto trile_id_ok = false;
+        auto orientation_ok = false;
+
+        trile_emplacement.m_Id = trile_instance_elem.attribute("trileId").toFloat(&trile_id_ok);
+        trile_emplacement.m_Orintation = trile_instance_elem.attribute("orientation").toFloat(&orientation_ok);
+
+        if(!trile_id_ok || !orientation_ok)
+            return {};
+
+        // read position
+        const auto position_elem = trile_instance_elem.firstChildElement("Position");
+
+        if(position_elem.isNull())
+            return {};
+
+        const auto vec3_elem = position_elem.firstChildElement("Vector3");
+
+        if(vec3_elem.isNull())
+            return {};
+
+        if(!vec3_elem.hasAttribute("x") || !vec3_elem.hasAttribute("y") || !vec3_elem.hasAttribute("z"))
+            return {};
+
+        trile_emplacement.m_Position = {vec3_elem.attribute("x").toFloat(&x_ok),  //
+                                        vec3_elem.attribute("y").toFloat(&y_ok),  //
+                                        vec3_elem.attribute("z").toFloat(&z_ok)};
+
+        if(!x_ok || !y_ok || !z_ok)
+            return {};
+
+        result[entry_count++] = std::move(trile_emplacement);
+        entry_elem = entry_elem.nextSiblingElement();
+    }
+
+    return result;
+}
+
+LevelParser::ArtObjects LevelParser::readArtObjects(const QDomElement& elem)
+{
+    // read TrileEmplacement
+    const auto art_objects_elem = elem.firstChildElement("ArtObjects");
+
+    if(art_objects_elem.isNull())
+        return {};
+
+    // count emplacements
+    auto entry_elem = art_objects_elem.firstChildElement("Entry");
+    auto entry_count = size_t(0);
+
+    while(!entry_elem.isNull())
+    {
+        entry_count++;
+
+        entry_elem = entry_elem.nextSiblingElement();
+    }
+
+    auto result = ArtObjects(entry_count);
+
+    // set emplacements
+    entry_elem = art_objects_elem.firstChildElement("Entry");
+    entry_count = size_t(0);
+
+    while(!entry_elem.isNull())
+    {
+        auto art_object = ArtObject();
+
+        // read ArtObjectInstance
+        const auto art_object_instance_elem = entry_elem.firstChildElement("ArtObjectInstance");
+
+        if(art_object_instance_elem.isNull())
+            return {};
+
+        if(!art_object_instance_elem.hasAttribute("name"))
+            return {};
+
+        art_object.m_Name = art_object_instance_elem.attribute("name");
+
+        // read position
+        const auto position_elem = art_object_instance_elem.firstChildElement("Position");
+
+        if(position_elem.isNull())
+            return {};
+
+        const auto pos_vec3_elem = position_elem.firstChildElement("Vector3");
+
+        if(pos_vec3_elem.isNull())
+            return {};
+
+        if(!pos_vec3_elem.hasAttribute("x") || !pos_vec3_elem.hasAttribute("y") || !pos_vec3_elem.hasAttribute("z"))
+            return {};
+
+        auto x_ok = false;
+        auto y_ok = false;
+        auto z_ok = false;
+
+        art_object.m_Position = {pos_vec3_elem.attribute("x").toFloat(&x_ok),  //
+                                 pos_vec3_elem.attribute("y").toFloat(&y_ok),  //
+                                 pos_vec3_elem.attribute("z").toFloat(&z_ok)};
+
+        if(!x_ok || !y_ok || !z_ok)
+            return {};
+
+        // read rotation
+        const auto rotation_elem = art_object_instance_elem.firstChildElement("Rotation");
+
+        if(rotation_elem.isNull())
+            return {};
+
+        const auto quaterion_elem = rotation_elem.firstChildElement("Quaternion");
+
+        if(quaterion_elem.isNull())
+            return {};
+
+        if(!quaterion_elem.hasAttribute("x") || !quaterion_elem.hasAttribute("y") || !quaterion_elem.hasAttribute("z") || !quaterion_elem.hasAttribute("w"))
+            return {};
+
+        auto w_ok = false;
+
+        art_object.m_Rotation = {quaterion_elem.attribute("x").toFloat(&x_ok),  //
+                                 quaterion_elem.attribute("y").toFloat(&y_ok),  //
+                                 quaterion_elem.attribute("z").toFloat(&z_ok),  //
+                                 quaterion_elem.attribute("w").toFloat(&w_ok)};
+
+        if(!x_ok || !y_ok || !z_ok || !w_ok)
+            return {};
+
+        // read scale
+        const auto scale_elem = art_object_instance_elem.firstChildElement("Scale");
+
+        if(scale_elem.isNull())
+            return {};
+
+        const auto scale_vec3_elem = scale_elem.firstChildElement("Vector3");
+
+        if(scale_vec3_elem.isNull())
+            return {};
+
+        if(!scale_vec3_elem.hasAttribute("x") || !scale_vec3_elem.hasAttribute("y") || !scale_vec3_elem.hasAttribute("z"))
+            return {};
+
+        art_object.m_Scale = {scale_vec3_elem.attribute("x").toFloat(&x_ok),  //
+                              scale_vec3_elem.attribute("y").toFloat(&y_ok),  //
+                              scale_vec3_elem.attribute("z").toFloat(&z_ok)};
+
+        if(!x_ok || !y_ok || !z_ok)
+            return {};
+
+        result[entry_count++] = std::move(art_object);
+        entry_elem = entry_elem.nextSiblingElement();
+    }
+
+    return result;
+}

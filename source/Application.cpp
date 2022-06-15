@@ -2,6 +2,8 @@
 
 #include "parser/ArtObjectParser.h"
 #include "parser/TrileSetParser.h"
+#include "parser/LevelParser.h"
+
 #include "writer/GeometryWriter.h"
 
 #include <QtCore/QDirIterator>
@@ -18,11 +20,14 @@ void Application::onRun()
 
     auto ao_xml_iter = QDirIterator(path + "/art objects", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
     auto ts_xml_iter = QDirIterator(path + "/trile sets", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
+    auto lvl_xml_iter = QDirIterator(path + "/levels", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
     Geometries geometries;
 
     while(ao_xml_iter.hasNext())
     {
+        break;
+
         const auto file = ao_xml_iter.next();
 
         ArtObjectParser parser;
@@ -34,6 +39,8 @@ void Application::onRun()
 
     while(ts_xml_iter.hasNext())
     {
+        break;
+
         const auto file = ts_xml_iter.next();
 
         TrileSetParser parser;
@@ -41,6 +48,14 @@ void Application::onRun()
 
         for(auto& r : result)
             geometries.push_back(std::move(r));
+    }
+
+    while(lvl_xml_iter.hasNext())
+    {
+        const auto file = lvl_xml_iter.next();
+
+        LevelParser parser;
+        parser.parse(file);
     }
 
     for(const auto& r : geometries)
