@@ -1,7 +1,7 @@
 #include "parser/LevelParser.h"
 
-#include "parser/TrileSetParser.h"
 #include "parser/ArtObjectParser.h"
+#include "parser/TrileSetParser.h"
 
 #include <QtCore/QDir>
 #include <QtCore/QFile>
@@ -28,19 +28,9 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 
     m_Path = info.absolutePath();
 
-    static const auto out_folder_name = "exported";
-
     const auto name = info.baseName();
     const auto org_path = info.absolutePath();
-    auto out_path = info.absolutePath();
     m_Document.clear();
-
-    QDir dir(out_path);
-
-    if(!dir.exists(out_folder_name))
-        dir.mkdir(out_folder_name);
-
-    out_path = out_path + "/" + out_folder_name;
 
     // load
     auto xml_file = QFile(path);
@@ -68,12 +58,17 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
     if(level_elem.isNull())
         return {};
 
+    Level result;
+
     if(!level_elem.hasAttribute("trileSetName"))
         return {};
 
-    Level result;
-
     result.m_TrileSetName = level_elem.attribute("trileSetName");
+
+    if(!level_elem.hasAttribute("name"))
+        return {};
+
+    result.m_LevelName = level_elem.attribute("name");
 
     // Size
     // StartingPosition
@@ -108,7 +103,7 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 
     result.m_TrileEmplacements = std::move(*trile_emplacements);
     result.m_TrileGeometries = std::move(*trile_geometries);
-    
+
     result.m_ArtObjects = std::move(*art_objects);
     result.m_ArtObjectGeometries = std::move(*art_object_geometries);
 

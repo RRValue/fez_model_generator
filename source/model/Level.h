@@ -12,6 +12,8 @@ struct Level
     using ArtObjects = std::vector<ArtObject>;
     using ArtObjectGeometries = std::map<QString, Geometry>;
 
+    QString m_LevelName;
+
     QString m_TrileSetName;
     TrileEmplacements m_TrileEmplacements;
     TrileGeometries m_TrileGeometries;

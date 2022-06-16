@@ -2,28 +2,14 @@
 
 #include "model/Geometry.h"
 
+#include "writer/Writer.h"
+
 #include <QtCore/QString>
 
-struct aiScene;
-struct aiMesh;
-struct aiMaterial;
-
-class GeometryWriter
+class GeometryWriter : public Writer
 {
 public:
-    GeometryWriter(const QString& path);
-    ~GeometryWriter();
+    using Writer::Writer;
 
     void writeObj(const Geometry& geometry);
-
-private:
-    aiMesh* allocateMesh();
-    aiMaterial* allocateMaterial();
-
-    void deallocateScene();
-
-private:
-    QString m_Path;
-    
-    aiScene* m_Scene;
 };
