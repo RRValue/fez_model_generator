@@ -2,7 +2,6 @@
 
 #include "parser/GeometryParser.h"
 
-#include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 
@@ -29,15 +28,7 @@ ArtObjectParser::GeometryResult ArtObjectParser::parse(const QString& path) noex
 
     const auto name = info.baseName();
     const auto org_path = info.absolutePath();
-    auto out_path = info.absolutePath();
     m_Document.clear();
-
-    QDir dir(out_path);
-
-    if(!dir.exists(out_folder_name))
-        dir.mkdir(out_folder_name);
-
-    out_path = out_path + "/" + out_folder_name;
 
     // load
     auto xml_file = QFile(path);
@@ -73,7 +64,6 @@ ArtObjectParser::GeometryResult ArtObjectParser::parse(const QString& path) noex
     geometry->m_Name = name;
     geometry->m_TextureName = name + ".png";
     geometry->m_TextureOrgFile = org_path + "/" + name + ".png";
-    geometry->m_OutPath = out_path;
 
     return geometry;
 }

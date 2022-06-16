@@ -1,8 +1,8 @@
 #include "Application.h"
 
 #include "parser/ArtObjectParser.h"
-#include "parser/TrileSetParser.h"
 #include "parser/LevelParser.h"
+#include "parser/TrileSetParser.h"
 
 #include "writer/GeometryWriter.h"
 
@@ -11,44 +11,61 @@
 
 #include <QtWidgets/QFileDialog>
 
-using Geometries = std::list<Geometry>;
-
 void Application::onRun()
 {
-    const auto path =
-        QFileDialog::getExistingDirectory(nullptr, "Export", QStandardPaths::writableLocation(QStandardPaths::StandardLocation::DesktopLocation));
+    const auto path = QFileDialog::getExistingDirectory(nullptr, "Export", QStandardPaths::writableLocation(QStandardPaths::StandardLocation::DesktopLocation));
 
+    processArtObjects(path);
+    processTrileSets(path);
+    processLevels(path);
+
+    exit();
+}
+
+void Application::processArtObjects(const QString& path)
+{
     auto ao_xml_iter = QDirIterator(path + "/art objects", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
-    auto ts_xml_iter = QDirIterator(path + "/trile sets", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
-    auto lvl_xml_iter = QDirIterator(path + "/levels", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
-
-    Geometries geometries;
 
     while(ao_xml_iter.hasNext())
     {
-        break;
-
         const auto file = ao_xml_iter.next();
 
         ArtObjectParser parser;
-        auto result = parser.parse(file);
+        const auto result = parser.parse(file);
 
-        if(result)
-            geometries.push_back(std::move(*result));
+        if(!result)
+            continue;
+
+        qDebug() << "Write: " << result->m_Name;
+
+        GeometryWriter(path + "/ao_export").writeObj(*result);
     }
+}
+
+void Application::processTrileSets(const QString& path)
+{
+    auto ts_xml_iter = QDirIterator(path + "/trile sets", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
     while(ts_xml_iter.hasNext())
     {
-        break;
-
         const auto file = ts_xml_iter.next();
 
         TrileSetParser parser;
-        auto result = parser.parse(file);
+        const auto result = parser.parse(file);
+        const auto& set_name = parser.getSetName();
 
-        for(auto& r : result)
-            geometries.push_back(std::move(r));
+        for(const auto& r : result)
+        {
+            qDebug() << "Write: " << r.second.m_Name;
+
+            GeometryWriter(path + "/ts_export/" + set_name).writeObj(r.second);
+        }
     }
+}
+
+void Application::processLevels(const QString& path)
+{
+    auto lvl_xml_iter = QDirIterator(path + "/levels", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
     while(lvl_xml_iter.hasNext())
     {
@@ -56,15 +73,7 @@ void Application::onRun()
 
         LevelParser parser;
         parser.parse(file);
+
+        // break;
     }
-
-    for(const auto& r : geometries)
-    {
-        qDebug() << "Write: " << r.m_Name << " to " << r.m_OutPath;
-
-        GeometryWriter(r.m_OutPath).writeObj(r);
-    }
-
-
-    exit();
 }

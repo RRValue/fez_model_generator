@@ -14,6 +14,11 @@ TrileSetParser::~TrileSetParser()
 {
 }
 
+const QString& TrileSetParser::getSetName() const noexcept
+{
+    return m_SetName;
+}
+
 TrileSetParser::GeometryResults TrileSetParser::parse(const QString& path) noexcept
 {
     qDebug() << "parsing: " << path;
@@ -129,7 +134,6 @@ TrileSetParser::TrileResult TrileSetParser::parserTrile(const QDomElement& elem)
     geometry->m_Name = key_str;
     geometry->m_TextureName = m_SetName + ".png";
     geometry->m_TextureOrgFile = m_OrgPath + "/" + m_Name + ".png";
-    geometry->m_OutPath = m_OutPath + "/" + m_SetName;
 
     return std::make_pair(key, *geometry);
 }

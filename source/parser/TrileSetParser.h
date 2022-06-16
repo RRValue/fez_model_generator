@@ -16,6 +16,7 @@ public:
     ~TrileSetParser();
 
     GeometryResults parse(const QString& path) noexcept;
+    const QString& getSetName() const noexcept;
 
 private:
     TrileResult parserTrile(const QDomElement& elem);

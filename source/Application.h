@@ -11,4 +11,9 @@ public:
 
 public slots:
     void onRun();
+
+private:
+    void processArtObjects(const QString& path);
+    void processTrileSets(const QString& path);
+    void processLevels(const QString& path);
 };

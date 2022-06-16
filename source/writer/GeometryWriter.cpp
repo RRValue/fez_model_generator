@@ -1,6 +1,7 @@
 #include "writer/GeometryWriter.h"
 
 #include <QtCore/QFile>
+#include <QtCore/QDir>
 
 #include <assimp/Exporter.hpp>
 #include <assimp/scene.h>
@@ -15,6 +16,12 @@ GeometryWriter::GeometryWriter(const QString& path) : m_Path{path}, m_Scene{new 
     m_Scene->mRootNode->mNumMeshes = 1;
     m_Scene->mRootNode->mMeshes = new unsigned int[1];
     m_Scene->mRootNode->mMeshes[0] = 0;
+
+    // make path
+    QDir dir(m_Path);
+
+    if(!dir.exists())
+        dir.mkpath(".");
 }
 
 GeometryWriter::~GeometryWriter()

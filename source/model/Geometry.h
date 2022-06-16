@@ -14,7 +14,6 @@ struct Geometry
 	QString m_Name;
     QString m_TextureName;
     QString m_TextureOrgFile;
-    QString m_OutPath;
     Vertices m_Vertices;
     Indices m_Indices;
 };
