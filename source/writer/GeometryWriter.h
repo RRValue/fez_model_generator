@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geom/Geometry.h"
+#include "model/Geometry.h"
 
 #include <QtCore/QString>
 

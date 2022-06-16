@@ -1,8 +1,8 @@
 #pragma once
 
-#include "geom/Vertex.h"
+#include "model/Vertex.h"
 
-#include <QtCore/QFile>
+#include <QtCore/QString>
 
 #include <vector>
 
