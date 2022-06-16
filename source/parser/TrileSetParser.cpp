@@ -2,9 +2,9 @@
 
 #include "parser/GeometryParser.h"
 
+#include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
-#include <QtCore/QDir>
 
 TrileSetParser::TrileSetParser() : m_Document{}
 {
@@ -78,6 +78,7 @@ TrileSetParser::GeometryResults TrileSetParser::parse(const QString& path) noexc
     if(triles_elem.isNull())
         return {};
 
+    // read trile entries
     auto trile_entry_elem = triles_elem.firstChildElement("TrileEntry");
 
     GeometryResults results;
@@ -86,26 +87,33 @@ TrileSetParser::GeometryResults TrileSetParser::parse(const QString& path) noexc
     {
         auto result = parserTrile(trile_entry_elem);
 
-        if(result)
-            results.push_back(std::move(*result));
+        if(!result)
+            return {};
 
+        results.insert(std::move(*result));
         trile_entry_elem = trile_entry_elem.nextSiblingElement();
     }
 
     return results;
 }
 
-TrileSetParser::GeometryResult TrileSetParser::parserTrile(const QDomElement& elem)
+TrileSetParser::TrileResult TrileSetParser::parserTrile(const QDomElement& elem)
 {
     if(!elem.hasAttribute("key"))
         return {};
 
-    const auto key = elem.attribute("key");
+    const auto key_str = elem.attribute("key");
     const auto trile_elem = elem.firstChildElement("Trile");
 
-    qDebug() << "\t: " << key;
+    qDebug() << "\t: " << key_str;
 
     if(trile_elem.isNull())
+        return {};
+
+    auto key_ok = false;
+    const auto key = key_str.toInt(&key_ok);
+
+    if(!key_ok)
         return {};
 
     const auto geom_elem = trile_elem.firstChildElement("Geometry");
@@ -118,10 +126,10 @@ TrileSetParser::GeometryResult TrileSetParser::parserTrile(const QDomElement& el
     if(!geometry)
         return {};
 
-    geometry->m_Name = key;
+    geometry->m_Name = key_str;
     geometry->m_TextureName = m_SetName + ".png";
     geometry->m_TextureOrgFile = m_OrgPath + "/" + m_Name + ".png";
     geometry->m_OutPath = m_OutPath + "/" + m_SetName;
 
-    return geometry;
+    return std::make_pair(key, *geometry);
 }

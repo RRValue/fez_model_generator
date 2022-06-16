@@ -1,34 +1,36 @@
 #pragma once
 
-#include "model/TrileEmplacement.h"
-#include "model/ArtObject.h"
+#include "model/Level.h"
 
 #include <QtCore/QString>
 
 #include <QtXml/QDomDocument>
 
-struct aiMesh;
-struct aiMaterial;
-
 class LevelParser
 {
-    using TrileEmplacements = std::vector<TrileEmplacement>;
-    using ArtObjects = std::vector<ArtObject>;
+    using LevelResult = std::optional<Level>;
+    
+    using TrileEmplacementsResult = std::optional<Level::TrileEmplacements>;
+    using TrileGeometriesResult = std::optional<Level::TrileGeometries>;
+
+    using ArtObjectsResult = std::optional<Level::ArtObjects>;
+    using ArtObjectGeometriesResult = std::optional<Level::ArtObjectGeometries>;
 
 public:
     LevelParser();
     ~LevelParser();
 
-    void parse(const QString& path) noexcept;
+    LevelResult parse(const QString& path) noexcept;
 
 private:
-    TrileEmplacements readTrileEmplacements(const QDomElement& elem);
-    ArtObjects readArtObjects(const QDomElement& elem);
+    TrileEmplacementsResult readTrileEmplacements(const QDomElement& elem);
+    ArtObjectsResult readArtObjects(const QDomElement& elem);
+
+    TrileGeometriesResult parseTrileEmplacements(const Level::TrileEmplacements& emplacements, const QString& trileSetName);
+    ArtObjectGeometriesResult parseArtObjects(const Level::ArtObjects& artObjects);
 
 private:
     QDomDocument m_Document;
 
-    QString m_TrileSetName;
-    TrileEmplacements m_TrileEmplacements;
-    ArtObjects m_ArtObjects;
+    QString m_Path;
 };

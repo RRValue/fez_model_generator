@@ -8,8 +8,8 @@
 
 class TrileSetParser
 {
-    using GeometryResult = std::optional<Geometry>;
-    using GeometryResults = std::list<Geometry>;
+    using TrileResult = std::optional<std::pair<int, Geometry>>;
+    using GeometryResults = std::map<int, Geometry>;
 
 public:
     TrileSetParser();
@@ -18,7 +18,7 @@ public:
     GeometryResults parse(const QString& path) noexcept;
 
 private:
-    GeometryResult parserTrile(const QDomElement& elem);
+    TrileResult parserTrile(const QDomElement& elem);
 
 private:
     QDomDocument m_Document;

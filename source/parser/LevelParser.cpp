@@ -1,6 +1,7 @@
 #include "parser/LevelParser.h"
 
-#include "parser/GeometryParser.h"
+#include "parser/TrileSetParser.h"
+#include "parser/ArtObjectParser.h"
 
 #include <QtCore/QDir>
 #include <QtCore/QFile>
@@ -16,14 +17,16 @@ LevelParser::~LevelParser()
 {
 }
 
-void LevelParser::parse(const QString& path) noexcept
+LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 {
     qDebug() << "parsing: " << path;
 
     QFileInfo info(path);
 
     if(!info.exists())
-        return;
+        return {};
+
+    m_Path = info.absolutePath();
 
     static const auto out_folder_name = "exported";
 
@@ -43,10 +46,10 @@ void LevelParser::parse(const QString& path) noexcept
     auto xml_file = QFile(path);
 
     if(!xml_file.exists())
-        return;
+        return {};
 
     if(!xml_file.open(QIODevice::OpenModeFlag::ReadOnly))
-        return;
+        return {};
 
     QString error_msg;
     int error_line;
@@ -56,39 +59,63 @@ void LevelParser::parse(const QString& path) noexcept
     {
         qDebug() << "Error: \"" + error_msg + "\" at line: " + QString::number(error_line) + " Columns: " + QString::number(error_column);
 
-        return;
+        return {};
     }
 
     // parse
     const auto level_elem = m_Document.firstChildElement("Level");
 
     if(level_elem.isNull())
-        return;
+        return {};
 
     if(!level_elem.hasAttribute("trileSetName"))
-        return;
+        return {};
 
-    m_TrileSetName = level_elem.attribute("trileSetName");
+    Level result;
+
+    result.m_TrileSetName = level_elem.attribute("trileSetName");
 
     // Size
     // StartingPosition
     // Volumes
     // Scripts
     // Triles
-    m_TrileEmplacements = readTrileEmplacements(level_elem);
+    auto trile_emplacements = std::move(readTrileEmplacements(level_elem));
+
+    if(!trile_emplacements)
+        return {};
+
+    auto trile_geometries = parseTrileEmplacements(*trile_emplacements, result.m_TrileSetName);
+
+    if(!trile_geometries)
+        return {};
+
     // ArtObjects
-    m_ArtObjects = readArtObjects(level_elem);
-    // BackgroundPlanes
+    auto art_objects = std::move(readArtObjects(level_elem));
+
+    if(!art_objects)
+        return {};
+
+    auto art_object_geometries = parseArtObjects(*art_objects);
+
+    if(!art_object_geometries)
+        return {};
     // Groups
     // NonplayerCharacters
     // Paths
     // MutedLoops
     // AmbienceTracks
 
-    return;
+    result.m_TrileEmplacements = std::move(*trile_emplacements);
+    result.m_TrileGeometries = std::move(*trile_geometries);
+    
+    result.m_ArtObjects = std::move(*art_objects);
+    result.m_ArtObjectGeometries = std::move(*art_object_geometries);
+
+    return result;
 }
 
-LevelParser::TrileEmplacements LevelParser::readTrileEmplacements(const QDomElement& elem)
+LevelParser::TrileEmplacementsResult LevelParser::readTrileEmplacements(const QDomElement& elem)
 {
     // read TrileEmplacement
     const auto triles_elem = elem.firstChildElement("Triles");
@@ -107,7 +134,7 @@ LevelParser::TrileEmplacements LevelParser::readTrileEmplacements(const QDomElem
         entry_elem = entry_elem.nextSiblingElement();
     }
 
-    auto result = TrileEmplacements(entry_count);
+    auto result = Level::TrileEmplacements(entry_count);
 
     // set emplacements
     entry_elem = triles_elem.firstChildElement("Entry");
@@ -183,7 +210,7 @@ LevelParser::TrileEmplacements LevelParser::readTrileEmplacements(const QDomElem
     return result;
 }
 
-LevelParser::ArtObjects LevelParser::readArtObjects(const QDomElement& elem)
+LevelParser::ArtObjectsResult LevelParser::readArtObjects(const QDomElement& elem)
 {
     // read TrileEmplacement
     const auto art_objects_elem = elem.firstChildElement("ArtObjects");
@@ -202,7 +229,7 @@ LevelParser::ArtObjects LevelParser::readArtObjects(const QDomElement& elem)
         entry_elem = entry_elem.nextSiblingElement();
     }
 
-    auto result = ArtObjects(entry_count);
+    auto result = Level::ArtObjects(entry_count);
 
     // set emplacements
     entry_elem = art_objects_elem.firstChildElement("Entry");
@@ -295,6 +322,76 @@ LevelParser::ArtObjects LevelParser::readArtObjects(const QDomElement& elem)
 
         result[entry_count++] = std::move(art_object);
         entry_elem = entry_elem.nextSiblingElement();
+    }
+
+    return result;
+}
+
+LevelParser::TrileGeometriesResult LevelParser::parseTrileEmplacements(const Level::TrileEmplacements& emplacements, const QString& trileSetName)
+{
+    const auto trile_sets_dir = QDir(m_Path + "/../trile sets");
+
+    if(!trile_sets_dir.exists())
+        return {};
+
+    const auto trile_set_path = trile_sets_dir.absolutePath() + "/" + trileSetName + ".xml";
+
+    if(!QFile(trile_set_path).exists())
+        return {};
+
+    // load triles
+    TrileSetParser parser;
+    auto triles_result = parser.parse(trile_set_path);
+
+    if(triles_result.empty())
+        return {};
+
+    Level::TrileGeometries result;
+
+    for(const auto& emplacement : emplacements)
+    {
+        if(result.find(emplacement.m_Id) != result.cend())
+            continue;
+
+        const auto find_result = triles_result.find(emplacement.m_Id);
+
+        if(find_result == triles_result.cend())
+            return {};
+
+        result.insert(*find_result);
+    }
+
+    return result;
+}
+
+LevelParser::ArtObjectGeometriesResult LevelParser::parseArtObjects(const Level::ArtObjects& artObjects)
+{
+    const auto art_objects_dir = QDir(m_Path + "/../art objects");
+
+    if(!art_objects_dir.exists())
+        return {};
+
+    Level::ArtObjectGeometries result;
+
+    for(const auto& artObject : artObjects)
+    {
+        if(result.find(artObject.m_Name) != result.cend())
+            continue;
+
+        // file to art object
+        const auto art_object_path = art_objects_dir.absolutePath() + "/" + artObject.m_Name + ".xml";
+
+        if(!QFile(art_object_path).exists())
+            return {};
+
+        // load triles
+        ArtObjectParser parser;
+        auto art_object_result = parser.parse(art_object_path);
+
+        if(!art_object_result)
+            return {};
+
+        result.insert({artObject.m_Name, std::move(*art_object_result)});
     }
 
     return result;
