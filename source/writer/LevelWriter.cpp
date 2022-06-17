@@ -31,7 +31,7 @@ void LevelWriter::writeLevel(const Level& level)
 
         aiVector3D pos = aiVector3D(ao.m_Position.x(), ao.m_Position.y(), ao.m_Position.z());
         aiVector3D sca = aiVector3D(ao.m_Scale.x(), ao.m_Scale.y(), ao.m_Scale.z());
-        aiQuaternion rot = aiQuaternion(ao.m_Rotation.x(), ao.m_Rotation.y(), ao.m_Rotation.z(), ao.m_Rotation.w());
+        aiQuaternion rot = aiQuaternion(ao.m_Rotation.w(), ao.m_Rotation.x(), ao.m_Rotation.y(), ao.m_Rotation.z());
         
         node->mTransformation = aiMatrix4x4(sca, rot, pos);
         

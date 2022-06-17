@@ -289,10 +289,10 @@ LevelParser::ArtObjectsResult LevelParser::readArtObjects(const QDomElement& ele
 
         auto w_ok = false;
 
-        art_object.m_Rotation = {quaterion_elem.attribute("x").toFloat(&x_ok),  //
+        art_object.m_Rotation = {quaterion_elem.attribute("w").toFloat(&w_ok),  //
+                                 quaterion_elem.attribute("x").toFloat(&x_ok),  //
                                  quaterion_elem.attribute("y").toFloat(&y_ok),  //
-                                 quaterion_elem.attribute("z").toFloat(&z_ok),  //
-                                 quaterion_elem.attribute("w").toFloat(&w_ok)};
+                                 quaterion_elem.attribute("z").toFloat(&z_ok)};
 
         if(!x_ok || !y_ok || !z_ok || !w_ok)
             return {};
