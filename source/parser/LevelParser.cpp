@@ -7,6 +7,8 @@
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 
+#include <QtGui/QImage>
+
 #include <qdebug.h>
 
 LevelParser::TrileSetCache LevelParser::sm_TrileSetCache = {};
@@ -98,6 +100,17 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 
     if(!art_object_geometries)
         return {};
+
+    // BackgroundPlanes
+    auto background_planes = std::move(readBackgroundPlanes(level_elem));
+
+    if(!background_planes)
+        return {};
+
+    auto background_plane_geometries = parseBackgroundPlanes(*background_planes);
+
+    if(!background_plane_geometries)
+        return {};
     // Groups
     // NonplayerCharacters
     // Paths
@@ -109,6 +122,9 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 
     result.m_ArtObjects = std::move(*art_objects);
     result.m_ArtObjectGeometries = std::move(*art_object_geometries);
+
+    result.m_BackgroundPlanes = std::move(*background_planes);
+    result.m_BackgroundPlaneGeometries = std::move(*background_plane_geometries);
 
     return result;
 }
@@ -423,6 +439,181 @@ LevelParser::ArtObjectGeometriesResult LevelParser::parseArtObjects(const Level:
             return {};
 
         result.insert({artObject.m_Name, std::move(*art_object)});
+    }
+
+    return result;
+}
+
+LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDomElement& elem)
+{
+    // read TrileEmplacement
+    const auto background_planes_elem = elem.firstChildElement("BackgroundPlanes");
+
+    if(background_planes_elem.isNull())
+        return {};
+
+    // count backgroun planes
+    auto entry_elem = background_planes_elem.firstChildElement("Entry");
+    auto entry_count = size_t(0);
+
+    while(!entry_elem.isNull())
+    {
+        entry_count++;
+
+        entry_elem = entry_elem.nextSiblingElement();
+    }
+
+    auto result = Level::BackgroundPlanes(entry_count);
+
+    // set emplacements
+    entry_elem = background_planes_elem.firstChildElement("Entry");
+    entry_count = size_t(0);
+
+    while(!entry_elem.isNull())
+    {
+        auto background_plane = BackgroundPlane();
+
+        // read BackgroundPlane
+        const auto background_plane_elem = entry_elem.firstChildElement("BackgroundPlane");
+
+        if(background_plane_elem.isNull())
+            return {};
+
+        if(!background_plane_elem.hasAttribute("textureName"))
+            return {};
+
+        background_plane.m_Name = background_plane_elem.attribute("textureName");
+
+        // read position
+        const auto position_elem = background_plane_elem.firstChildElement("Position");
+
+        if(position_elem.isNull())
+            return {};
+
+        const auto pos_vec3_elem = position_elem.firstChildElement("Vector3");
+
+        if(pos_vec3_elem.isNull())
+            return {};
+
+        if(!pos_vec3_elem.hasAttribute("x") || !pos_vec3_elem.hasAttribute("y") || !pos_vec3_elem.hasAttribute("z"))
+            return {};
+
+        auto x_ok = false;
+        auto y_ok = false;
+        auto z_ok = false;
+
+        background_plane.m_Position = {pos_vec3_elem.attribute("x").toFloat(&x_ok),  //
+                                       pos_vec3_elem.attribute("y").toFloat(&y_ok),  //
+                                       pos_vec3_elem.attribute("z").toFloat(&z_ok)};
+
+        if(!x_ok || !y_ok || !z_ok)
+            return {};
+
+        // read rotation
+        const auto rotation_elem = background_plane_elem.firstChildElement("Rotation");
+
+        if(rotation_elem.isNull())
+            return {};
+
+        const auto quaterion_elem = rotation_elem.firstChildElement("Quaternion");
+
+        if(quaterion_elem.isNull())
+            return {};
+
+        if(!quaterion_elem.hasAttribute("x") || !quaterion_elem.hasAttribute("y") || !quaterion_elem.hasAttribute("z") || !quaterion_elem.hasAttribute("w"))
+            return {};
+
+        auto w_ok = false;
+
+        background_plane.m_Rotation = {quaterion_elem.attribute("w").toFloat(&w_ok),  //
+                                       quaterion_elem.attribute("x").toFloat(&x_ok),  //
+                                       quaterion_elem.attribute("y").toFloat(&y_ok),  //
+                                       quaterion_elem.attribute("z").toFloat(&z_ok)};
+
+        if(!x_ok || !y_ok || !z_ok || !w_ok)
+            return {};
+
+        // read scale
+        const auto scale_elem = background_plane_elem.firstChildElement("Scale");
+
+        if(scale_elem.isNull())
+            return {};
+
+        const auto scale_vec3_elem = scale_elem.firstChildElement("Vector3");
+
+        if(scale_vec3_elem.isNull())
+            return {};
+
+        if(!scale_vec3_elem.hasAttribute("x") || !scale_vec3_elem.hasAttribute("y") || !scale_vec3_elem.hasAttribute("z"))
+            return {};
+
+        background_plane.m_Scale = {scale_vec3_elem.attribute("x").toFloat(&x_ok),  //
+                                    scale_vec3_elem.attribute("y").toFloat(&y_ok),  //
+                                    scale_vec3_elem.attribute("z").toFloat(&z_ok)};
+
+        if(!x_ok || !y_ok || !z_ok)
+            return {};
+
+        result[entry_count++] = std::move(background_plane);
+        entry_elem = entry_elem.nextSiblingElement();
+    }
+
+    return result;
+}
+
+LevelParser::BackgroundPlaneGeometriesResult LevelParser::parseBackgroundPlanes(const Level::BackgroundPlanes& backgroundPlanes)
+{
+    Level::BackgroundPlaneGeometries result;
+
+    for(const auto& backgroundPlane : backgroundPlanes)
+    {
+        if(result.find(backgroundPlane.m_Name) != result.cend())
+            return {};
+
+        // load art object
+        const auto background_plane_dir = QDir(m_Path + "/../background planes");
+
+        if(!background_plane_dir.exists())
+            return {};
+
+        const auto background_plane_file = background_plane_dir.absolutePath() + "/" + backgroundPlane.m_Name + ".png";
+
+        if(!QFile(background_plane_file).exists())
+            return {};
+
+        const auto background_plane_image = QImage(background_plane_file);
+
+        if(background_plane_image.isNull())
+            return {};
+
+        const auto w = background_plane_image.width();
+        const auto h = background_plane_image.height();
+
+        const auto geom_w = float(w / 16);
+        const auto geom_h = float(h / 16);
+
+        Geometry geometry;
+
+        geometry.m_Vertices = Geometry::Vertices(4);
+        geometry.m_Indices = Geometry::Indices(6);
+
+        geometry.m_Vertices[0] = {{-geom_w / 2, -geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}};
+        geometry.m_Vertices[1] = {{-geom_w / 2, geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}};
+        geometry.m_Vertices[2] = {{geom_w / 2, -geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}};
+        geometry.m_Vertices[3] = {{geom_w / 2, geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}};
+
+        geometry.m_Indices[0] = 0;
+        geometry.m_Indices[1] = 1;
+        geometry.m_Indices[2] = 2;
+        geometry.m_Indices[3] = 2;
+        geometry.m_Indices[4] = 1;
+        geometry.m_Indices[5] = 3;
+
+        geometry.m_Name = backgroundPlane.m_Name;
+        geometry.m_TextureName = backgroundPlane.m_Name + ".png";
+        geometry.m_TextureOrgFile = background_plane_file;
+
+        result.insert({backgroundPlane.m_Name, std::move(geometry)});
     }
 
     return result;

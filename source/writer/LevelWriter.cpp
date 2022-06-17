@@ -83,5 +83,37 @@ void LevelWriter::writeLevel(const Level& level)
         m_Scene->mRootNode->addChildren(1, nodes);
     }
 
+    for(const auto& bp : level.m_BackgroundPlanes)
+    {
+        const auto& bp_name = bp.m_Name;
+        const auto bp_geom_find_iter = level.m_BackgroundPlaneGeometries.find(bp_name);
+
+        if(bp_geom_find_iter == level.m_BackgroundPlaneGeometries.cend())
+            continue;
+
+        const auto& bp_geom = *bp_geom_find_iter;
+
+        const auto mesh_id = addGeometry(bp_geom.second);
+
+        if(!mesh_id)
+            continue;
+
+        const auto nodes = new aiNode*[1];
+        nodes[0] = new aiNode;
+        const auto node = nodes[0];
+
+        aiVector3D pos = aiVector3D(bp.m_Position.x() - 0.5f, bp.m_Position.y() - 0.5f, bp.m_Position.z() - 0.5f);
+        aiVector3D sca = aiVector3D(bp.m_Scale.x(), bp.m_Scale.y(), bp.m_Scale.z());
+        aiQuaternion rot = aiQuaternion(bp.m_Rotation.w(), bp.m_Rotation.x(), bp.m_Rotation.y(), bp.m_Rotation.z());
+
+        node->mTransformation = aiMatrix4x4(sca, rot, pos);
+
+        node->mMeshes = new unsigned int[1];
+        node->mMeshes[0] = *mesh_id;
+        node->mNumMeshes = 1;
+
+        m_Scene->mRootNode->addChildren(1, nodes);
+    }
+
     save();
 }
