@@ -5,6 +5,7 @@
 #include "parser/TrileSetParser.h"
 
 #include "writer/GeometryWriter.h"
+#include "writer/LevelWriter.h"
 
 #include <QtCore/QDirIterator>
 #include <QtCore/QStandardPaths>
@@ -14,7 +15,7 @@
 void Application::onRun()
 {
     const auto path = QFileDialog::getExistingDirectory(nullptr, "Export", QStandardPaths::writableLocation(QStandardPaths::StandardLocation::DesktopLocation));
-
+    
     processArtObjects(path);
     processTrileSets(path);
     processLevels(path);
@@ -72,8 +73,11 @@ void Application::processLevels(const QString& path)
         const auto file = lvl_xml_iter.next();
 
         LevelParser parser;
-        parser.parse(file);
+        const auto level = parser.parse(file);
+        
+        if(!level)
+            break;
 
-        // break;
+        LevelWriter(path + "/lv_export/" + level->m_LevelName).writeLevel(*level);
     }
 }

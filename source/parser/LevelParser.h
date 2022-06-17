@@ -17,7 +17,6 @@ class LevelParser
     using ArtObjectGeometriesResult = std::optional<Level::ArtObjectGeometries>;
 
     using BackgroundPlanesResult = std::optional<Level::BackgroundPlanes>;
-    using BackgroundPlaneGeometriesResult = std::optional<Level::BackgroundPlaneGeometries>;
 
     using TrileSetCache = std::map<QString, Level::TrileGeometries>;
     using ArtObjectCache = std::map<QString, Geometry>;
@@ -35,7 +34,7 @@ private:
 
     TrileGeometriesResult parseTrileEmplacements(const Level::TrileEmplacements& emplacements, const QString& trileSetName);
     ArtObjectGeometriesResult parseArtObjects(const Level::ArtObjects& artObjects);
-    BackgroundPlaneGeometriesResult parseBackgroundPlanes(const Level::BackgroundPlanes& backgroundPlanes);
+    BackgroundPlanesResult parseBackgroundPlanes(const Level::BackgroundPlanes& backgroundPlanes);
 
 private:
     QDomDocument m_Document;

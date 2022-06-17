@@ -35,6 +35,7 @@ void LevelWriter::writeLevel(const Level& level)
         
         node->mTransformation = aiMatrix4x4(sca, rot, pos);
         
+        node->mName = ao.m_Name.toStdString();
         node->mMeshes = new unsigned int[1];
         node->mMeshes[0] = *mesh_id;
         node->mNumMeshes = 1;
@@ -76,6 +77,7 @@ void LevelWriter::writeLevel(const Level& level)
 
         node->mTransformation = aiMatrix4x4(sca, rot, pos);
 
+        node->mName = QString::number(te.m_Id).toStdString();
         node->mMeshes = new unsigned int[1];
         node->mMeshes[0] = *mesh_id;
         node->mNumMeshes = 1;
@@ -85,15 +87,7 @@ void LevelWriter::writeLevel(const Level& level)
 
     for(const auto& bp : level.m_BackgroundPlanes)
     {
-        const auto& bp_name = bp.m_Name;
-        const auto bp_geom_find_iter = level.m_BackgroundPlaneGeometries.find(bp_name);
-
-        if(bp_geom_find_iter == level.m_BackgroundPlaneGeometries.cend())
-            continue;
-
-        const auto& bp_geom = *bp_geom_find_iter;
-
-        const auto mesh_id = addGeometry(bp_geom.second);
+        const auto mesh_id = addGeometry(bp.m_Geometry);
 
         if(!mesh_id)
             continue;
@@ -108,6 +102,7 @@ void LevelWriter::writeLevel(const Level& level)
 
         node->mTransformation = aiMatrix4x4(sca, rot, pos);
 
+        node->mName = bp.m_Name.toStdString();
         node->mMeshes = new unsigned int[1];
         node->mMeshes[0] = *mesh_id;
         node->mNumMeshes = 1;

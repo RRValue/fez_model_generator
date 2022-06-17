@@ -14,7 +14,6 @@ struct Level
     using ArtObjectGeometries = std::map<QString, Geometry>;
 
     using BackgroundPlanes = std::vector<BackgroundPlane>;
-    using BackgroundPlaneGeometries = std::map<QString, Geometry>;
 
     QString m_LevelName;
 
@@ -26,5 +25,4 @@ struct Level
     ArtObjectGeometries m_ArtObjectGeometries;
 
     BackgroundPlanes m_BackgroundPlanes;
-    BackgroundPlaneGeometries m_BackgroundPlaneGeometries;
 };

@@ -126,6 +126,8 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
         ai_face.mIndices[2] = geometry.m_Indices[3 * i + 2];
     }
 
+    mesh->mName = geometry.m_Name.toStdString();
+
     // load material
     aiString fileName(geometry.m_TextureName.toStdString());
     material->AddProperty(&fileName, AI_MATKEY_NAME);

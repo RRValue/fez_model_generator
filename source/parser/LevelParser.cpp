@@ -107,10 +107,11 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
     if(!background_planes)
         return {};
 
-    auto background_plane_geometries = parseBackgroundPlanes(*background_planes);
+    background_planes = parseBackgroundPlanes(*background_planes);
 
-    if(!background_plane_geometries)
+    if(!background_planes)
         return {};
+
     // Groups
     // NonplayerCharacters
     // Paths
@@ -124,7 +125,6 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
     result.m_ArtObjectGeometries = std::move(*art_object_geometries);
 
     result.m_BackgroundPlanes = std::move(*background_planes);
-    result.m_BackgroundPlaneGeometries = std::move(*background_plane_geometries);
 
     return result;
 }
@@ -561,15 +561,12 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
     return result;
 }
 
-LevelParser::BackgroundPlaneGeometriesResult LevelParser::parseBackgroundPlanes(const Level::BackgroundPlanes& backgroundPlanes)
+LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Level::BackgroundPlanes& backgroundPlanes)
 {
-    Level::BackgroundPlaneGeometries result;
+    Level::BackgroundPlanes result;
 
     for(const auto& backgroundPlane : backgroundPlanes)
     {
-        if(result.find(backgroundPlane.m_Name) != result.cend())
-            return {};
-
         // load art object
         const auto background_plane_dir = QDir(m_Path + "/../background planes");
 
@@ -578,13 +575,14 @@ LevelParser::BackgroundPlaneGeometriesResult LevelParser::parseBackgroundPlanes(
 
         const auto background_plane_file = background_plane_dir.absolutePath() + "/" + backgroundPlane.m_Name + ".png";
 
+        // \todo could be an animation too
         if(!QFile(background_plane_file).exists())
-            return {};
+            continue;
 
         const auto background_plane_image = QImage(background_plane_file);
 
         if(background_plane_image.isNull())
-            return {};
+            continue;
 
         const auto w = background_plane_image.width();
         const auto h = background_plane_image.height();
@@ -592,28 +590,28 @@ LevelParser::BackgroundPlaneGeometriesResult LevelParser::parseBackgroundPlanes(
         const auto geom_w = float(w / 16);
         const auto geom_h = float(h / 16);
 
-        Geometry geometry;
+        auto back_ground_plane = backgroundPlane;
 
-        geometry.m_Vertices = Geometry::Vertices(4);
-        geometry.m_Indices = Geometry::Indices(6);
+        back_ground_plane.m_Geometry.m_Vertices = Geometry::Vertices(4);
+        back_ground_plane.m_Geometry.m_Indices = Geometry::Indices(6);
 
-        geometry.m_Vertices[0] = {{-geom_w / 2, -geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}};
-        geometry.m_Vertices[1] = {{-geom_w / 2, geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}};
-        geometry.m_Vertices[2] = {{geom_w / 2, -geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}};
-        geometry.m_Vertices[3] = {{geom_w / 2, geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}};
+        back_ground_plane.m_Geometry.m_Vertices[0] = {{-geom_w / 2, -geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}};
+        back_ground_plane.m_Geometry.m_Vertices[1] = {{-geom_w / 2, geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}};
+        back_ground_plane.m_Geometry.m_Vertices[2] = {{geom_w / 2, -geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}};
+        back_ground_plane.m_Geometry.m_Vertices[3] = {{geom_w / 2, geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}};
 
-        geometry.m_Indices[0] = 0;
-        geometry.m_Indices[1] = 1;
-        geometry.m_Indices[2] = 2;
-        geometry.m_Indices[3] = 2;
-        geometry.m_Indices[4] = 1;
-        geometry.m_Indices[5] = 3;
+        back_ground_plane.m_Geometry.m_Indices[0] = 0;
+        back_ground_plane.m_Geometry.m_Indices[1] = 1;
+        back_ground_plane.m_Geometry.m_Indices[2] = 2;
+        back_ground_plane.m_Geometry.m_Indices[3] = 2;
+        back_ground_plane.m_Geometry.m_Indices[4] = 1;
+        back_ground_plane.m_Geometry.m_Indices[5] = 3;
 
-        geometry.m_Name = backgroundPlane.m_Name;
-        geometry.m_TextureName = backgroundPlane.m_Name + ".png";
-        geometry.m_TextureOrgFile = background_plane_file;
+        back_ground_plane.m_Geometry.m_Name = backgroundPlane.m_Name;
+        back_ground_plane.m_Geometry.m_TextureName = backgroundPlane.m_Name + ".png";
+        back_ground_plane.m_Geometry.m_TextureOrgFile = background_plane_file;
 
-        result.insert({backgroundPlane.m_Name, std::move(geometry)});
+        result.push_back(back_ground_plane);
     }
 
     return result;
