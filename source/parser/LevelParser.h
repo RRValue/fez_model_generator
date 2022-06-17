@@ -16,6 +16,9 @@ class LevelParser
     using ArtObjectsResult = std::optional<Level::ArtObjects>;
     using ArtObjectGeometriesResult = std::optional<Level::ArtObjectGeometries>;
 
+    using TrileSetCache = std::map<QString, Level::TrileGeometries>;
+    using ArtObjectCache = std::map<QString, Geometry>;
+
 public:
     LevelParser();
     ~LevelParser();
@@ -33,4 +36,7 @@ private:
     QDomDocument m_Document;
 
     QString m_Path;
+
+    static TrileSetCache sm_TrileSetCache;
+    static ArtObjectCache sm_ArtObjectCache;
 };

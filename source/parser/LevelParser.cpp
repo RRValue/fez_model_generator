@@ -9,6 +9,9 @@
 
 #include <qdebug.h>
 
+LevelParser::TrileSetCache LevelParser::sm_TrileSetCache = {};
+LevelParser::ArtObjectCache LevelParser::sm_ArtObjectCache = {};
+
 LevelParser::LevelParser() : m_Document{}
 {
 }
@@ -324,21 +327,36 @@ LevelParser::ArtObjectsResult LevelParser::readArtObjects(const QDomElement& ele
 
 LevelParser::TrileGeometriesResult LevelParser::parseTrileEmplacements(const Level::TrileEmplacements& emplacements, const QString& trileSetName)
 {
-    const auto trile_sets_dir = QDir(m_Path + "/../trile sets");
+    // find trile set in cache
+    const auto trile_set = [this, &trileSetName]() -> Level::TrileGeometries {
+        const auto trile_set_find_iter = sm_TrileSetCache.find(trileSetName);
 
-    if(!trile_sets_dir.exists())
-        return {};
+        if(trile_set_find_iter != sm_TrileSetCache.cend())
+            return trile_set_find_iter->second;
 
-    const auto trile_set_path = trile_sets_dir.absolutePath() + "/" + trileSetName + ".xml";
+        // load triles
+        const auto trile_sets_dir = QDir(m_Path + "/../trile sets");
 
-    if(!QFile(trile_set_path).exists())
-        return {};
+        if(!trile_sets_dir.exists())
+            return {};
 
-    // load triles
-    TrileSetParser parser;
-    auto triles_result = parser.parse(trile_set_path);
+        const auto trile_set_path = trile_sets_dir.absolutePath() + "/" + trileSetName + ".xml";
 
-    if(triles_result.empty())
+        if(!QFile(trile_set_path).exists())
+            return {};
+
+        TrileSetParser parser;
+        const auto triles_set = parser.parse(trile_set_path);
+
+        if(triles_set.empty())
+            return {};
+
+        sm_TrileSetCache.insert({trileSetName, triles_set});
+
+        return triles_set;
+    }();
+
+    if(trile_set.empty())
         return {};
 
     Level::TrileGeometries result;
@@ -348,9 +366,13 @@ LevelParser::TrileGeometriesResult LevelParser::parseTrileEmplacements(const Lev
         if(result.find(emplacement.m_Id) != result.cend())
             continue;
 
-        const auto find_result = triles_result.find(emplacement.m_Id);
+        // \todo what is -1
+        if(emplacement.m_Id == -1)
+            continue;
 
-        if(find_result == triles_result.cend())
+        const auto find_result = trile_set.find(emplacement.m_Id);
+
+        if(find_result == trile_set.cend())
             return {};
 
         result.insert(*find_result);
@@ -361,11 +383,6 @@ LevelParser::TrileGeometriesResult LevelParser::parseTrileEmplacements(const Lev
 
 LevelParser::ArtObjectGeometriesResult LevelParser::parseArtObjects(const Level::ArtObjects& artObjects)
 {
-    const auto art_objects_dir = QDir(m_Path + "/../art objects");
-
-    if(!art_objects_dir.exists())
-        return {};
-
     Level::ArtObjectGeometries result;
 
     for(const auto& artObject : artObjects)
@@ -373,20 +390,39 @@ LevelParser::ArtObjectGeometriesResult LevelParser::parseArtObjects(const Level:
         if(result.find(artObject.m_Name) != result.cend())
             continue;
 
-        // file to art object
-        const auto art_object_path = art_objects_dir.absolutePath() + "/" + artObject.m_Name + ".xml";
+        // find art object set in cache
+        auto art_object = [this](const QString& artObjectName) -> std::optional<Geometry> {
+            const auto art_object_find_iter = sm_ArtObjectCache.find(artObjectName);
 
-        if(!QFile(art_object_path).exists())
+            if(art_object_find_iter != sm_ArtObjectCache.cend())
+                return art_object_find_iter->second;
+
+            // load art object
+            const auto art_objects_dir = QDir(m_Path + "/../art objects");
+
+            if(!art_objects_dir.exists())
+                return {};
+
+            const auto art_object_path = art_objects_dir.absolutePath() + "/" + artObjectName + ".xml";
+
+            if(!QFile(art_object_path).exists())
+                return {};
+
+            ArtObjectParser parser;
+            auto art_object_result = parser.parse(art_object_path);
+
+            if(!art_object_result)
+                return {};
+
+            sm_ArtObjectCache.insert({artObjectName, *art_object_result});
+
+            return *art_object_result;
+        }(artObject.m_Name);
+
+        if(!art_object)
             return {};
 
-        // load triles
-        ArtObjectParser parser;
-        auto art_object_result = parser.parse(art_object_path);
-
-        if(!art_object_result)
-            return {};
-
-        result.insert({artObject.m_Name, std::move(*art_object_result)});
+        result.insert({artObject.m_Name, std::move(*art_object)});
     }
 
     return result;

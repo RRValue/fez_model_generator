@@ -13,9 +13,6 @@ Writer::Writer(const QString& path) : m_Path{path}, m_Scene{new aiScene()}
 
     m_Scene->mRootNode = new aiNode();
     m_Scene->mRootNode->mTransformation = aiMatrix4x4({1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1});
-    m_Scene->mRootNode->mNumMeshes = 1;
-    m_Scene->mRootNode->mMeshes = new unsigned int[1];
-    m_Scene->mRootNode->mMeshes[0] = 0;
 
     // make path
     QDir dir(m_Path);
