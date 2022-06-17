@@ -29,7 +29,7 @@ void LevelWriter::writeLevel(const Level& level)
         nodes[0] = new aiNode;
         const auto node = nodes[0];
 
-        aiVector3D pos = aiVector3D(ao.m_Position.x(), ao.m_Position.y(), ao.m_Position.z());
+        aiVector3D pos = aiVector3D(ao.m_Position.x() - 0.5f, ao.m_Position.y() - 0.5f, ao.m_Position.z() - 0.5f);
         aiVector3D sca = aiVector3D(ao.m_Scale.x(), ao.m_Scale.y(), ao.m_Scale.z());
         aiQuaternion rot = aiQuaternion(ao.m_Rotation.w(), ao.m_Rotation.x(), ao.m_Rotation.y(), ao.m_Rotation.z());
         
@@ -63,8 +63,16 @@ void LevelWriter::writeLevel(const Level& level)
 
         aiVector3D pos = aiVector3D(te.m_Position.x(), te.m_Position.y(), te.m_Position.z());
         aiVector3D sca = aiVector3D(1.0f, 1.0f, 1.0f);
-        //aiQuaternion rot = aiQuaternion(ao.m_Rotation.w(), ao.m_Rotation.x(), ao.m_Rotation.y(), ao.m_Rotation.z());
-        aiQuaternion rot;
+        aiQuaternion rot = [](const auto& orientation) {
+            switch(orientation)
+            {
+                case 0: return aiQuaternion(M_PI, 0.0f, 0.0f);
+                case 1: return aiQuaternion(M_PI * -0.5f, 0.0f, 0.0f);
+                case 2: return aiQuaternion(0.0f, 0.0f, 0.0f);
+                case 3: return aiQuaternion(M_PI * 0.5f, 0.0f, 0.0f);
+                default: return aiQuaternion();
+            }
+        }(te.m_Orintation);
 
         node->mTransformation = aiMatrix4x4(sca, rot, pos);
 

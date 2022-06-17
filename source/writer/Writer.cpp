@@ -90,6 +90,7 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
     mesh->mVertices = new aiVector3D[num_vertices];
     mesh->mNormals = new aiVector3D[num_vertices];
     mesh->mTextureCoords[0] = new aiVector3D[num_vertices];
+    mesh->mPrimitiveTypes = aiPrimitiveType::aiPrimitiveType_TRIANGLE;
 
     for(unsigned int i = 0; i < num_vertices; i++)
     {
@@ -141,10 +142,8 @@ void Writer::save()
 {
     // save
     Assimp::Exporter exporter;
-    aiReturn success;
-
-    success = exporter.Export(m_Scene, "obj", m_Path.toStdString() + "/" + m_SaveName.toStdString() + ".obj");
-
+    aiReturn success = exporter.Export(m_Scene, "obj", m_Path.toStdString() + "/" + m_SaveName.toStdString() + ".obj");
+    
     if(success != aiReturn_SUCCESS)
     {
         std::string export_error_string(exporter.GetErrorString());
