@@ -42,5 +42,38 @@ void LevelWriter::writeLevel(const Level& level)
         m_Scene->mRootNode->addChildren(1, nodes);
     }
 
+    for(const auto& te : level.m_TrileEmplacements)
+    {
+        const auto& trile_id = te.m_Id;
+        const auto trile_geom_find_iter = level.m_TrileGeometries.find(trile_id);
+
+        if(trile_geom_find_iter == level.m_TrileGeometries.cend())
+            continue;
+
+        const auto& trile_geom = *trile_geom_find_iter;
+
+        const auto mesh_id = addGeometry(trile_geom.second);
+
+        if(!mesh_id)
+            continue;
+
+        const auto nodes = new aiNode*[1];
+        nodes[0] = new aiNode;
+        const auto node = nodes[0];
+
+        aiVector3D pos = aiVector3D(te.m_Position.x(), te.m_Position.y(), te.m_Position.z());
+        aiVector3D sca = aiVector3D(1.0f, 1.0f, 1.0f);
+        //aiQuaternion rot = aiQuaternion(ao.m_Rotation.w(), ao.m_Rotation.x(), ao.m_Rotation.y(), ao.m_Rotation.z());
+        aiQuaternion rot;
+
+        node->mTransformation = aiMatrix4x4(sca, rot, pos);
+
+        node->mMeshes = new unsigned int[1];
+        node->mMeshes[0] = *mesh_id;
+        node->mNumMeshes = 1;
+
+        m_Scene->mRootNode->addChildren(1, nodes);
+    }
+
     save();
 }

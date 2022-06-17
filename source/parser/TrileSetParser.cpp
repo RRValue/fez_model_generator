@@ -121,6 +121,11 @@ TrileSetParser::TrileResult TrileSetParser::parserTrile(const QDomElement& elem)
     if(!key_ok)
         return {};
 
+    if(!trile_elem.hasAttribute("name"))
+        return {};
+
+    const auto name = trile_elem.attribute("name");
+
     const auto geom_elem = trile_elem.firstChildElement("Geometry");
 
     if(geom_elem.isNull())
@@ -131,7 +136,7 @@ TrileSetParser::TrileResult TrileSetParser::parserTrile(const QDomElement& elem)
     if(!geometry)
         return {};
 
-    geometry->m_Name = key_str;
+    geometry->m_Name = key_str + "_" + name;
     geometry->m_TextureName = m_SetName + ".png";
     geometry->m_TextureOrgFile = m_OrgPath + "/" + m_Name + ".png";
 
