@@ -641,11 +641,11 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
         back_ground_plane.m_Geometry.m_Vertices[3] = {p3, normal, {1.0f, 1.0f}};
 
         back_ground_plane.m_Geometry.m_Indices[0] = 0;
-        back_ground_plane.m_Geometry.m_Indices[1] = 2;
-        back_ground_plane.m_Geometry.m_Indices[2] = 1;
+        back_ground_plane.m_Geometry.m_Indices[1] = 1;
+        back_ground_plane.m_Geometry.m_Indices[2] = 2;
         back_ground_plane.m_Geometry.m_Indices[3] = 2;
-        back_ground_plane.m_Geometry.m_Indices[4] = 3;
-        back_ground_plane.m_Geometry.m_Indices[5] = 1;
+        back_ground_plane.m_Geometry.m_Indices[4] = 1;
+        back_ground_plane.m_Geometry.m_Indices[5] = 3;
 
         back_ground_plane.m_Geometry.m_Name = backgroundPlane.m_Name;
         back_ground_plane.m_Geometry.m_TextureName = backgroundPlane.m_Name + ".png";

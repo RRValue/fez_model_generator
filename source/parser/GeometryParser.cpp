@@ -101,12 +101,12 @@ GeometryParser::VerticesResult GeometryParser::parseVertices(const QDomElement& 
         if(!side_index_ok)
             return {};
 
-        static const auto pos_x = Vec3f{1, 0, 0};
-        static const auto pos_y = Vec3f{0, 1, 0};
-        static const auto pos_z = Vec3f{0, 0, 1};
-        static const auto neg_x = Vec3f{-1, 0, 0};
-        static const auto neg_y = Vec3f{0, -1, 0};
-        static const auto neg_z = Vec3f{0, 0, -1};
+        static const auto pos_x = Vec3f{-1, 0, 0};
+        static const auto pos_y = Vec3f{0, -1, 0};
+        static const auto pos_z = Vec3f{0, 0, -1};
+        static const auto neg_x = Vec3f{1, 0, 0};
+        static const auto neg_y = Vec3f{0, 1, 0};
+        static const auto neg_z = Vec3f{0, 0, 1};
 
         switch(side_index)
         {

@@ -124,8 +124,8 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
         ai_face.mIndices = new unsigned int[3];
 
         ai_face.mIndices[0] = geometry.m_Indices[3 * i + 0];
-        ai_face.mIndices[1] = geometry.m_Indices[3 * i + 1];
-        ai_face.mIndices[2] = geometry.m_Indices[3 * i + 2];
+        ai_face.mIndices[1] = geometry.m_Indices[3 * i + 2];
+        ai_face.mIndices[2] = geometry.m_Indices[3 * i + 1];
     }
 
     mesh->mName = geometry.m_Name.toStdString();
