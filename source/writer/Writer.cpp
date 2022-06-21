@@ -3,6 +3,8 @@
 #include <QtCore/QFile>
 #include <QtCore/QDir>
 
+#include <QtGui/QImage>
+
 #include <assimp/Exporter.hpp>
 #include <assimp/scene.h>
 
@@ -127,11 +129,42 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
     }
 
     mesh->mName = geometry.m_Name.toStdString();
-
+    
     // load material
-    aiString fileName(geometry.m_TextureName.toStdString());
-    material->AddProperty(&fileName, AI_MATKEY_NAME);
-    material->AddProperty(&fileName, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0));
+    aiString material_name(geometry.m_TextureName.toStdString());
+    aiString diffuse_texture_filename(geometry.m_TextureName.toStdString());
+    aiString opacity_texture_filename(geometry.m_TextureName.toStdString());
+    
+    auto result = material->AddProperty(&material_name, AI_MATKEY_NAME);
+    result = material->AddProperty(&diffuse_texture_filename, AI_MATKEY_TEXTURE_DIFFUSE(0));
+
+    const auto opacity = geometry.m_Opacity;
+    const auto double_sided = geometry.m_DoubleSided;
+
+    result = material->AddProperty(&opacity, 1, AI_MATKEY_OPACITY);
+    result = material->AddProperty(&double_sided, 1, AI_MATKEY_TWOSIDED);
+
+    // test on transparency
+    if(geometry.m_IsBackgroundPlane)
+    {
+        QImage texture(geometry.m_TextureOrgFile);
+
+        if(texture.isNull())
+            return {};
+        
+        if(texture.hasAlphaChannel())
+        {
+            bool use_opacity = false;
+
+            for(int x = 0; x < texture.width() && !use_opacity; x++)
+                for(int y = 0; y < texture.height() && !use_opacity; y++)
+                    use_opacity = texture.pixelColor(x, y).alphaF() < 1.0f;
+
+            if(use_opacity)
+                result = material->AddProperty(&opacity_texture_filename, AI_MATKEY_TEXTURE_OPACITY(0));
+        }    
+
+    }
 
     m_Textures.push_back(std::make_pair(geometry.m_TextureOrgFile, m_Path + "/" + geometry.m_TextureName));
 

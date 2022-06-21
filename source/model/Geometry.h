@@ -16,4 +16,7 @@ struct Geometry
     QString m_TextureOrgFile;
     Vertices m_Vertices;
     Indices m_Indices;
+    float m_Opacity = 1.0f;
+    bool m_DoubleSided = true;
+    bool m_IsBackgroundPlane = false;
 };

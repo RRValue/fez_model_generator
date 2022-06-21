@@ -484,6 +484,29 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
 
         background_plane.m_Name = background_plane_elem.attribute("textureName");
 
+        // read opacity
+        if(!background_plane_elem.hasAttribute("opacity"))
+            return {};
+
+        auto opacity_ok = false;
+        background_plane.m_Geometry.m_Opacity = background_plane_elem.attribute("opacity").toFloat(&opacity_ok);
+
+        if(!opacity_ok)
+            return {};
+
+        // read double sided
+        if(!background_plane_elem.hasAttribute("doubleSided"))
+            return {};
+
+        const auto double_sided = background_plane_elem.attribute("doubleSided");
+
+        if(double_sided.compare("true", Qt::CaseInsensitive))
+            background_plane.m_Geometry.m_DoubleSided = true;
+        else if(double_sided.compare("false", Qt::CaseInsensitive))
+            background_plane.m_Geometry.m_DoubleSided = false;
+        else
+            return {};
+
         // read position
         const auto position_elem = background_plane_elem.firstChildElement("Position");
 
@@ -592,13 +615,22 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
 
         auto back_ground_plane = backgroundPlane;
 
+        back_ground_plane.m_Geometry.m_IsBackgroundPlane = true;
         back_ground_plane.m_Geometry.m_Vertices = Geometry::Vertices(4);
         back_ground_plane.m_Geometry.m_Indices = Geometry::Indices(6);
 
-        back_ground_plane.m_Geometry.m_Vertices[0] = {{-geom_w / 2, -geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}};
-        back_ground_plane.m_Geometry.m_Vertices[1] = {{-geom_w / 2, geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}};
-        back_ground_plane.m_Geometry.m_Vertices[2] = {{geom_w / 2, -geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}};
-        back_ground_plane.m_Geometry.m_Vertices[3] = {{geom_w / 2, geom_h / 2, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}};
+        const auto normal = Vec3f{0.0f, 0.0f, 1.0f};
+        const auto move_out_vec = normal * 0.05f;
+
+        const auto p0 = Vec3f{-geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
+        const auto p1 = Vec3f{-geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
+        const auto p2 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
+        const auto p3 = Vec3f{geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
+
+        back_ground_plane.m_Geometry.m_Vertices[0] = {p0, normal, {0.0f, 0.0f}};
+        back_ground_plane.m_Geometry.m_Vertices[1] = {p1, normal, {0.0f, 1.0f}};
+        back_ground_plane.m_Geometry.m_Vertices[2] = {p2, normal, {1.0f, 0.0f}};
+        back_ground_plane.m_Geometry.m_Vertices[3] = {p3, normal, {1.0f, 1.0f}};
 
         back_ground_plane.m_Geometry.m_Indices[0] = 0;
         back_ground_plane.m_Geometry.m_Indices[1] = 1;
