@@ -3,6 +3,7 @@
 #include "model/Level.h"
 
 #include <QtCore/QString>
+#include <QtCore/QMutex>
 
 #include <QtXml/QDomDocument>
 
@@ -41,6 +42,9 @@ private:
 
     QString m_Path;
 
+    static QMutex sm_TrileSetCacheMutex;
     static TrileSetCache sm_TrileSetCache;
+
+    static QMutex sm_ArtObjectCacheMutex;
     static ArtObjectCache sm_ArtObjectCache;
 };

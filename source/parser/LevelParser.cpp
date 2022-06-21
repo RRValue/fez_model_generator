@@ -6,12 +6,16 @@
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
+#include <QtCore/QMutexLocker>
 
 #include <QtGui/QImage>
 
 #include <qdebug.h>
 
+QMutex LevelParser::sm_TrileSetCacheMutex = {};
 LevelParser::TrileSetCache LevelParser::sm_TrileSetCache = {};
+
+QMutex LevelParser::sm_ArtObjectCacheMutex = {};
 LevelParser::ArtObjectCache LevelParser::sm_ArtObjectCache = {};
 
 LevelParser::LevelParser() : m_Document{}
@@ -345,6 +349,8 @@ LevelParser::TrileGeometriesResult LevelParser::parseTrileEmplacements(const Lev
 {
     // find trile set in cache
     const auto trile_set = [this, &trileSetName]() -> Level::TrileGeometries {
+        QMutexLocker locker(&sm_TrileSetCacheMutex);
+
         const auto trile_set_find_iter = sm_TrileSetCache.find(trileSetName);
 
         if(trile_set_find_iter != sm_TrileSetCache.cend())
@@ -408,6 +414,8 @@ LevelParser::ArtObjectGeometriesResult LevelParser::parseArtObjects(const Level:
 
         // find art object set in cache
         auto art_object = [this](const QString& artObjectName) -> std::optional<Geometry> {
+            QMutexLocker locker(&sm_ArtObjectCacheMutex);
+
             const auto art_object_find_iter = sm_ArtObjectCache.find(artObjectName);
 
             if(art_object_find_iter != sm_ArtObjectCache.cend())
@@ -633,11 +641,11 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
         back_ground_plane.m_Geometry.m_Vertices[3] = {p3, normal, {1.0f, 1.0f}};
 
         back_ground_plane.m_Geometry.m_Indices[0] = 0;
-        back_ground_plane.m_Geometry.m_Indices[1] = 1;
-        back_ground_plane.m_Geometry.m_Indices[2] = 2;
+        back_ground_plane.m_Geometry.m_Indices[1] = 2;
+        back_ground_plane.m_Geometry.m_Indices[2] = 1;
         back_ground_plane.m_Geometry.m_Indices[3] = 2;
-        back_ground_plane.m_Geometry.m_Indices[4] = 1;
-        back_ground_plane.m_Geometry.m_Indices[5] = 3;
+        back_ground_plane.m_Geometry.m_Indices[4] = 3;
+        back_ground_plane.m_Geometry.m_Indices[5] = 1;
 
         back_ground_plane.m_Geometry.m_Name = backgroundPlane.m_Name;
         back_ground_plane.m_Geometry.m_TextureName = backgroundPlane.m_Name + ".png";
