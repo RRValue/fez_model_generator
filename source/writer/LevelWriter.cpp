@@ -121,7 +121,7 @@ void LevelWriter::writeLevel(const Level& level)
         nodes[0] = new aiNode;
         const auto node = nodes[0];
 
-        aiVector3D pos = aiVector3D(car.m_Position.x() - 0.5f, car.m_Position.y() - 0.5f, car.m_Position.z() - 0.5f);
+        aiVector3D pos = aiVector3D(car.m_Position.x(), car.m_Position.y(), car.m_Position.z());
         aiVector3D sca = aiVector3D(1.0f, 1.0f, 1.0f);
         aiQuaternion rot = aiQuaternion();
 

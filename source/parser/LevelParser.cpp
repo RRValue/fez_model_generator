@@ -103,7 +103,7 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 
     if(!art_objects)
         return {};
-
+    
     auto art_object_geometries = parseArtObjects(*art_objects);
 
     if(!art_object_geometries)
@@ -523,7 +523,7 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
 
         const auto texture_path = QDir(m_Path + "/../background planes").absolutePath();
 
-        const auto texture = [&]() -> TextureResult {
+        const auto texture = [this, &texture_path, &background_plane, &animated]() -> TextureResult {
             QMutexLocker locker(&sm_TextureCacheMutex);
 
             const auto cache_texture = sm_TextureCache.find(texture_path);
@@ -737,7 +737,7 @@ LevelParser::CharactersResult LevelParser::readCharacters(const QDomElement& ele
         // read texture
         const auto texture_path = QDir(m_Path + "/../character animations").absolutePath();
 
-        const auto texture = [&]() -> TextureResult {
+        const auto texture = [this, &texture_path, &character]() -> TextureResult {
             QMutexLocker locker(&sm_TextureCacheMutex);
 
             const auto cache_texture = sm_TextureCache.find(texture_path);
