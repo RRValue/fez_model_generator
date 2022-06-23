@@ -131,9 +131,9 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
     mesh->mName = geometry.m_Name.toStdString();
     
     // load material
-    aiString material_name(geometry.m_TextureName.toStdString());
-    aiString diffuse_texture_filename(geometry.m_TextureName.toStdString());
-    aiString opacity_texture_filename(geometry.m_TextureName.toStdString());
+    aiString material_name(geometry.m_Texture.m_TextureName.toStdString());
+    aiString diffuse_texture_filename(geometry.m_Texture.m_TextureName.toStdString());
+    aiString opacity_texture_filename(geometry.m_Texture.m_TextureName.toStdString());
     
     auto result = material->AddProperty(&material_name, AI_MATKEY_NAME);
     result = material->AddProperty(&diffuse_texture_filename, AI_MATKEY_TEXTURE_DIFFUSE(0));
@@ -147,7 +147,7 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
     // test on transparency
     if(geometry.m_IsBackgroundPlane)
     {
-        QImage texture(geometry.m_TextureOrgFile);
+        QImage texture(geometry.m_Texture.m_TextureOrgFile);
 
         if(texture.isNull())
             return {};
@@ -166,7 +166,7 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
 
     }
 
-    m_Textures.push_back(std::make_pair(geometry.m_TextureOrgFile, m_Path + "/" + geometry.m_TextureName));
+    m_Textures.push_back(std::make_pair(geometry.m_Texture.m_TextureOrgFile, m_Path + "/" + geometry.m_Texture.m_TextureName));
 
     mesh->mMaterialIndex = material_allocation.first;
 
@@ -186,9 +186,14 @@ void Writer::save()
         return;
     }
 
-    for(const auto& textrure : m_Textures)
+    for(const auto& t: m_Textures)
     {
-        QFile texture(textrure.first);
-        texture.copy(textrure.second);
+        const auto texture_out_dir = QDir(QFileInfo(t.second).absolutePath());
+
+        if(!texture_out_dir.exists())
+            texture_out_dir.mkdir(".");
+
+        QFile texture(t.first);
+        texture.copy(t.second);
     }
 }

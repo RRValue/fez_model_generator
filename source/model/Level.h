@@ -15,14 +15,14 @@ struct Level
 
     using BackgroundPlanes = std::vector<BackgroundPlane>;
 
-    QString m_LevelName;
+    QString m_LevelName = {};
 
-    QString m_TrileSetName;
-    TrileEmplacements m_TrileEmplacements;
-    TrileGeometries m_TrileGeometries;
+    QString m_TrileSetName = {};
+    TrileEmplacements m_TrileEmplacements = {};
+    TrileGeometries m_TrileGeometries = {};
     
-    ArtObjects m_ArtObjects;
-    ArtObjectGeometries m_ArtObjectGeometries;
+    ArtObjects m_ArtObjects = {};
+    ArtObjectGeometries m_ArtObjectGeometries = {};
 
-    BackgroundPlanes m_BackgroundPlanes;
+    BackgroundPlanes m_BackgroundPlanes = {};
 };

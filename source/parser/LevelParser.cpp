@@ -1,6 +1,7 @@
 #include "parser/LevelParser.h"
 
 #include "parser/ArtObjectParser.h"
+#include "parser/TextureParser.h"
 #include "parser/TrileSetParser.h"
 
 #include <QtCore/QDir>
@@ -17,6 +18,9 @@ LevelParser::TrileSetCache LevelParser::sm_TrileSetCache = {};
 
 QMutex LevelParser::sm_ArtObjectCacheMutex = {};
 LevelParser::ArtObjectCache LevelParser::sm_ArtObjectCache = {};
+
+QMutex LevelParser::sm_TextureCacheMutex = {};
+LevelParser::TextureCache LevelParser::sm_TextureCache = {};
 
 LevelParser::LevelParser() : m_Document{}
 {
@@ -490,7 +494,46 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
         if(!background_plane_elem.hasAttribute("textureName"))
             return {};
 
-        background_plane.m_Name = background_plane_elem.attribute("textureName");
+        background_plane.m_Name = QString(background_plane_elem.attribute("textureName")).replace('\\', '/');
+
+        // read texture
+        if(!background_plane_elem.hasAttribute("animated"))
+            return {};
+
+        const auto animated_str = background_plane_elem.attribute("animated");
+        auto animated = false;
+
+        if(animated_str.compare("true", Qt::CaseInsensitive) == 0)
+            animated = true;
+        else if(animated_str.compare("false", Qt::CaseInsensitive) == 0)
+            animated = false;
+        else
+            return {};
+
+        const auto texture_path = QDir(m_Path + "/../background planes").absolutePath() + "/" + background_plane.m_Name;
+
+        const auto texture = [&]() -> TextureResult {
+            QMutexLocker locker(&sm_TextureCacheMutex);
+
+            const auto cache_texture = sm_TextureCache.find(texture_path);
+
+            if(cache_texture != sm_TextureCache.cend())
+                return cache_texture->second;
+
+            const auto loaded_texture = TextureParser().parse(texture_path, animated);
+
+            if(!loaded_texture)
+                return {};
+
+            sm_TextureCache.insert(std::make_pair(texture_path, *loaded_texture));
+
+            return loaded_texture;
+        }();
+
+        if(!texture)
+            return {};
+
+        background_plane.m_Geometry.m_Texture = std::move(*texture);
 
         // read opacity
         if(!background_plane_elem.hasAttribute("opacity"))
@@ -508,9 +551,9 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
 
         const auto double_sided = background_plane_elem.attribute("doubleSided");
 
-        if(double_sided.compare("true", Qt::CaseInsensitive))
+        if(double_sided.compare("true", Qt::CaseInsensitive) == 0)
             background_plane.m_Geometry.m_DoubleSided = true;
-        else if(double_sided.compare("false", Qt::CaseInsensitive))
+        else if(double_sided.compare("false", Qt::CaseInsensitive) == 0)
             background_plane.m_Geometry.m_DoubleSided = false;
         else
             return {};
@@ -598,28 +641,10 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
 
     for(const auto& backgroundPlane : backgroundPlanes)
     {
-        // load art object
-        const auto background_plane_dir = QDir(m_Path + "/../background planes");
+        const auto& texture = backgroundPlane.m_Geometry.m_Texture;
 
-        if(!background_plane_dir.exists())
-            return {};
-
-        const auto background_plane_file = background_plane_dir.absolutePath() + "/" + backgroundPlane.m_Name + ".png";
-
-        // \todo could be an animation too
-        if(!QFile(background_plane_file).exists())
-            continue;
-
-        const auto background_plane_image = QImage(background_plane_file);
-
-        if(background_plane_image.isNull())
-            continue;
-
-        const auto w = background_plane_image.width();
-        const auto h = background_plane_image.height();
-
-        const auto geom_w = float(w / 16);
-        const auto geom_h = float(h / 16);
+        const auto geom_w = float(texture.m_Width / 16);
+        const auto geom_h = float(texture.m_Height / 16);
 
         auto back_ground_plane = backgroundPlane;
 
@@ -635,10 +660,13 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
         const auto p2 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
         const auto p3 = Vec3f{geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
 
-        back_ground_plane.m_Geometry.m_Vertices[0] = {p0, normal, {0.0f, 0.0f}};
-        back_ground_plane.m_Geometry.m_Vertices[1] = {p1, normal, {0.0f, 1.0f}};
-        back_ground_plane.m_Geometry.m_Vertices[2] = {p2, normal, {1.0f, 0.0f}};
-        back_ground_plane.m_Geometry.m_Vertices[3] = {p3, normal, {1.0f, 1.0f}};
+        const auto texture_coord_p = texture.m_IsAnimated ? std::get<1>(texture.m_TextureAnimationOffsets[0]) : Vec2f{0.0f, 0.0f};
+        const auto texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? std::get<2>(texture.m_TextureAnimationOffsets[0]) : Vec2f{1.0f, 1.0f});
+
+        back_ground_plane.m_Geometry.m_Vertices[0] = {p0, normal, {texture_coord_p.x(), texture_coord_p.y()}};
+        back_ground_plane.m_Geometry.m_Vertices[1] = {p1, normal, {texture_coord_p.x(), texture_coord_s.y()}};
+        back_ground_plane.m_Geometry.m_Vertices[2] = {p2, normal, {texture_coord_s.x(), texture_coord_p.y()}};
+        back_ground_plane.m_Geometry.m_Vertices[3] = {p3, normal, {texture_coord_s.x(), texture_coord_s.y()}};
 
         back_ground_plane.m_Geometry.m_Indices[0] = 0;
         back_ground_plane.m_Geometry.m_Indices[1] = 1;
@@ -647,9 +675,7 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
         back_ground_plane.m_Geometry.m_Indices[4] = 1;
         back_ground_plane.m_Geometry.m_Indices[5] = 3;
 
-        back_ground_plane.m_Geometry.m_Name = backgroundPlane.m_Name;
-        back_ground_plane.m_Geometry.m_TextureName = backgroundPlane.m_Name + ".png";
-        back_ground_plane.m_Geometry.m_TextureOrgFile = background_plane_file;
+        back_ground_plane.m_Geometry.m_Name = back_ground_plane.m_Geometry.m_Texture.m_TextureName;
 
         result.push_back(back_ground_plane);
     }

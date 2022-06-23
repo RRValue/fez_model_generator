@@ -62,8 +62,8 @@ ArtObjectParser::GeometryResult ArtObjectParser::parse(const QString& path) noex
         return {};
 
     geometry->m_Name = name;
-    geometry->m_TextureName = name + ".png";
-    geometry->m_TextureOrgFile = org_path + "/" + name + ".png";
+    geometry->m_Texture.m_TextureName = name + ".png";
+    geometry->m_Texture.m_TextureOrgFile = org_path + "/" + name + ".png";
 
     return geometry;
 }

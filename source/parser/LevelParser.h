@@ -1,6 +1,7 @@
 #pragma once
 
 #include "model/Level.h"
+#include "model/Texture.h"
 
 #include <QtCore/QString>
 #include <QtCore/QMutex>
@@ -18,9 +19,11 @@ class LevelParser
     using ArtObjectGeometriesResult = std::optional<Level::ArtObjectGeometries>;
 
     using BackgroundPlanesResult = std::optional<Level::BackgroundPlanes>;
+    using TextureResult = std::optional<Texture>;
 
     using TrileSetCache = std::map<QString, Level::TrileGeometries>;
     using ArtObjectCache = std::map<QString, Geometry>;
+    using TextureCache = std::map<QString, Texture>;
 
 public:
     LevelParser();
@@ -47,4 +50,7 @@ private:
 
     static QMutex sm_ArtObjectCacheMutex;
     static ArtObjectCache sm_ArtObjectCache;
+
+    static QMutex sm_TextureCacheMutex;
+    static TextureCache sm_TextureCache;
 };

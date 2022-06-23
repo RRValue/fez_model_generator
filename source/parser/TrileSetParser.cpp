@@ -137,8 +137,8 @@ TrileSetParser::TrileResult TrileSetParser::parserTrile(const QDomElement& elem)
         return {};
 
     geometry->m_Name = key_str + "_" + name;
-    geometry->m_TextureName = m_SetName + ".png";
-    geometry->m_TextureOrgFile = m_OrgPath + "/" + m_Name + ".png";
+    geometry->m_Texture.m_TextureName = m_SetName + ".png";
+    geometry->m_Texture.m_TextureOrgFile = m_OrgPath + "/" + m_Name + ".png";
 
     return std::make_pair(key, *geometry);
 }
