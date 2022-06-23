@@ -122,6 +122,15 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 
     // Groups
     // NonplayerCharacters
+    auto characters = std::move(readCharacters(level_elem));
+
+    if(!characters)
+        return {};
+
+    characters = parseCharacters(*characters);
+
+    if(!characters)
+        return {};
     // Paths
     // MutedLoops
     // AmbienceTracks
@@ -133,6 +142,8 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
     result.m_ArtObjectGeometries = std::move(*art_object_geometries);
 
     result.m_BackgroundPlanes = std::move(*background_planes);
+
+    result.m_Characters = std::move(*characters);
 
     return result;
 }
@@ -458,7 +469,7 @@ LevelParser::ArtObjectGeometriesResult LevelParser::parseArtObjects(const Level:
 
 LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDomElement& elem)
 {
-    // read TrileEmplacement
+    // read background planes
     const auto background_planes_elem = elem.firstChildElement("BackgroundPlanes");
 
     if(background_planes_elem.isNull())
@@ -477,7 +488,7 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
 
     auto result = Level::BackgroundPlanes(entry_count);
 
-    // set emplacements
+    // entry
     entry_elem = background_planes_elem.firstChildElement("Entry");
     entry_count = size_t(0);
 
@@ -510,7 +521,7 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
         else
             return {};
 
-        const auto texture_path = QDir(m_Path + "/../background planes").absolutePath() + "/" + background_plane.m_Name;
+        const auto texture_path = QDir(m_Path + "/../background planes").absolutePath();
 
         const auto texture = [&]() -> TextureResult {
             QMutexLocker locker(&sm_TextureCacheMutex);
@@ -520,12 +531,12 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
             if(cache_texture != sm_TextureCache.cend())
                 return cache_texture->second;
 
-            const auto loaded_texture = TextureParser().parse(texture_path, animated);
+            const auto loaded_texture = TextureParser().parse(texture_path, background_plane.m_Name, animated);
 
             if(!loaded_texture)
                 return {};
 
-            sm_TextureCache.insert(std::make_pair(texture_path, *loaded_texture));
+            sm_TextureCache.insert(std::make_pair(texture_path + "/" + background_plane.m_Name, *loaded_texture));
 
             return loaded_texture;
         }();
@@ -648,7 +659,7 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
 
         auto back_ground_plane = backgroundPlane;
 
-        back_ground_plane.m_Geometry.m_IsBackgroundPlane = true;
+        back_ground_plane.m_Geometry.m_IsPlane = true;
         back_ground_plane.m_Geometry.m_Vertices = Geometry::Vertices(4);
         back_ground_plane.m_Geometry.m_Indices = Geometry::Indices(6);
 
@@ -663,10 +674,10 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
         const auto texture_coord_p = texture.m_IsAnimated ? std::get<1>(texture.m_TextureAnimationOffsets[0]) : Vec2f{0.0f, 0.0f};
         const auto texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? std::get<2>(texture.m_TextureAnimationOffsets[0]) : Vec2f{1.0f, 1.0f});
 
-        back_ground_plane.m_Geometry.m_Vertices[0] = {p0, normal, {texture_coord_p.x(), texture_coord_p.y()}};
-        back_ground_plane.m_Geometry.m_Vertices[1] = {p1, normal, {texture_coord_p.x(), texture_coord_s.y()}};
-        back_ground_plane.m_Geometry.m_Vertices[2] = {p2, normal, {texture_coord_s.x(), texture_coord_p.y()}};
-        back_ground_plane.m_Geometry.m_Vertices[3] = {p3, normal, {texture_coord_s.x(), texture_coord_s.y()}};
+        back_ground_plane.m_Geometry.m_Vertices[0] = {p0, normal, {texture_coord_p.x(), 1.0f - texture_coord_p.y()}};
+        back_ground_plane.m_Geometry.m_Vertices[1] = {p1, normal, {texture_coord_p.x(), 1.0f - texture_coord_s.y()}};
+        back_ground_plane.m_Geometry.m_Vertices[2] = {p2, normal, {texture_coord_s.x(), 1.0f - texture_coord_p.y()}};
+        back_ground_plane.m_Geometry.m_Vertices[3] = {p3, normal, {texture_coord_s.x(), 1.0f - texture_coord_s.y()}};
 
         back_ground_plane.m_Geometry.m_Indices[0] = 0;
         back_ground_plane.m_Geometry.m_Indices[1] = 1;
@@ -678,6 +689,152 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
         back_ground_plane.m_Geometry.m_Name = back_ground_plane.m_Geometry.m_Texture.m_TextureName;
 
         result.push_back(back_ground_plane);
+    }
+
+    return result;
+}
+
+LevelParser::CharactersResult LevelParser::readCharacters(const QDomElement& elem)
+{
+    // read background planes
+    const auto non_player_characters_elem = elem.firstChildElement("NonplayerCharacters");
+
+    if(non_player_characters_elem.isNull())
+        return {};
+
+    // count backgroun planes
+    auto entry_elem = non_player_characters_elem.firstChildElement("Entry");
+    auto entry_count = size_t(0);
+
+    while(!entry_elem.isNull())
+    {
+        entry_count++;
+
+        entry_elem = entry_elem.nextSiblingElement();
+    }
+
+    auto result = Level::Characters(entry_count);
+
+    // entry
+    entry_elem = non_player_characters_elem.firstChildElement("Entry");
+    entry_count = size_t(0);
+
+    while(!entry_elem.isNull())
+    {
+        auto character = Character();
+
+        // read NpcInstance
+        const auto npc_instance = entry_elem.firstChildElement("NpcInstance");
+
+        if(npc_instance.isNull())
+            return {};
+
+        if(!npc_instance.hasAttribute("name"))
+            return {};
+
+        character.m_Name = QString(npc_instance.attribute("name"));
+
+        // read texture
+        const auto texture_path = QDir(m_Path + "/../character animations").absolutePath();
+
+        const auto texture = [&]() -> TextureResult {
+            QMutexLocker locker(&sm_TextureCacheMutex);
+
+            const auto cache_texture = sm_TextureCache.find(texture_path);
+
+            if(cache_texture != sm_TextureCache.cend())
+                return cache_texture->second;
+
+            const auto loaded_texture = TextureParser().parse(texture_path, character.m_Name + "/idle" , true);
+
+            if(!loaded_texture)
+                return {};
+
+            sm_TextureCache.insert(std::make_pair(texture_path + "/"+ character.m_Name + "/idle", *loaded_texture));
+
+            return loaded_texture;
+        }();
+
+        if(!texture)
+            return {};
+
+        character.m_Geometry.m_Texture = std::move(*texture);
+
+        // read position
+        const auto position_elem = npc_instance.firstChildElement("Position");
+
+        if(position_elem.isNull())
+            return {};
+
+        const auto pos_vec3_elem = position_elem.firstChildElement("Vector3");
+
+        if(pos_vec3_elem.isNull())
+            return {};
+
+        if(!pos_vec3_elem.hasAttribute("x") || !pos_vec3_elem.hasAttribute("y") || !pos_vec3_elem.hasAttribute("z"))
+            return {};
+
+        auto x_ok = false;
+        auto y_ok = false;
+        auto z_ok = false;
+
+        character.m_Position = {pos_vec3_elem.attribute("x").toFloat(&x_ok),  //
+                                pos_vec3_elem.attribute("y").toFloat(&y_ok),  //
+                                pos_vec3_elem.attribute("z").toFloat(&z_ok)};
+
+        if(!x_ok || !y_ok || !z_ok)
+            return {};
+
+        result[entry_count++] = std::move(character);
+        entry_elem = entry_elem.nextSiblingElement();
+    }
+
+    return result;
+}
+
+LevelParser::CharactersResult LevelParser::parseCharacters(const Level::Characters& characters)
+{
+    Level::Characters result;
+
+    for(const auto& character : characters)
+    {
+        const auto& texture = character.m_Geometry.m_Texture;
+
+        const auto geom_w = (float)texture.m_Width / float(16);
+        const auto geom_h = (float)texture.m_Height / float(16);
+
+        auto character_res = character;
+
+        character_res.m_Geometry.m_IsPlane = true;
+        character_res.m_Geometry.m_Vertices = Geometry::Vertices(4);
+        character_res.m_Geometry.m_Indices = Geometry::Indices(6);
+
+        const auto normal = Vec3f{0.0f, 0.0f, 1.0f};
+        const auto move_out_vec = normal * 0.05f;
+
+        const auto p0 = Vec3f{-geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
+        const auto p1 = Vec3f{-geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
+        const auto p2 = Vec3f{geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
+        const auto p3 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
+
+        const auto texture_coord_p = texture.m_IsAnimated ? std::get<1>(texture.m_TextureAnimationOffsets[0]) : Vec2f{0.0f, 0.0f};
+        const auto texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? std::get<2>(texture.m_TextureAnimationOffsets[0]) : Vec2f{1.0f, 1.0f});
+
+        character_res.m_Geometry.m_Vertices[0] = {p0, normal, {texture_coord_p.x(), 1.0f - texture_coord_p.y()}};
+        character_res.m_Geometry.m_Vertices[1] = {p1, normal, {texture_coord_p.x(), 1.0f - texture_coord_s.y()}};
+        character_res.m_Geometry.m_Vertices[2] = {p2, normal, {texture_coord_s.x(), 1.0f - texture_coord_p.y()}};
+        character_res.m_Geometry.m_Vertices[3] = {p3, normal, {texture_coord_s.x(), 1.0f - texture_coord_s.y()}};
+
+        character_res.m_Geometry.m_Indices[0] = 0;
+        character_res.m_Geometry.m_Indices[1] = 1;
+        character_res.m_Geometry.m_Indices[2] = 2;
+        character_res.m_Geometry.m_Indices[3] = 2;
+        character_res.m_Geometry.m_Indices[4] = 1;
+        character_res.m_Geometry.m_Indices[5] = 3;
+
+        character_res.m_Geometry.m_Name = character_res.m_Geometry.m_Texture.m_TextureName;
+
+        result.push_back(character_res);
     }
 
     return result;

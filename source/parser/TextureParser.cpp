@@ -14,19 +14,19 @@ TextureParser::~TextureParser()
 {
 }
 
-TextureParser::TextureResult TextureParser::parse(const QString& path, const bool& isAnimated) noexcept
+TextureParser::TextureResult TextureParser::parse(const QString& path, const QString& name, const bool& isAnimated) noexcept
 {
-    qDebug() << "parsing: " << path;
+    qDebug() << "parsing: " << path << "/" << name;
 
     Texture result;
 
-    result.m_TextureOrgFile = path + (isAnimated ? ".ani.png" : ".png");
+    result.m_TextureOrgFile = path + "/" + name + (isAnimated ? ".ani.png" : ".png");
 
     if(!QFile(result.m_TextureOrgFile).exists())
         return {};
 
     result.m_IsAnimated = isAnimated;
-    result.m_TextureName = QFileInfo(result.m_TextureOrgFile).fileName();
+    result.m_TextureName = name + (isAnimated ? ".ani.png" : ".png");
 
     if(!isAnimated)
     {
@@ -41,7 +41,7 @@ TextureParser::TextureResult TextureParser::parse(const QString& path, const boo
         return result;
     }
 
-    const auto xml_file_path = path + ".xml";
+    const auto xml_file_path = path + "/" + name + ".xml";
 
     QFileInfo info(xml_file_path);
 
@@ -76,7 +76,8 @@ TextureParser::TextureResult TextureParser::parse(const QString& path, const boo
     if(animated_texture_pc_elem.isNull())
         return {};
 
-    if(!animated_texture_pc_elem.hasAttribute("actualWidth") || !animated_texture_pc_elem.hasAttribute("actualHeight"))
+    if(!animated_texture_pc_elem.hasAttribute("actualWidth") || !animated_texture_pc_elem.hasAttribute("actualHeight") ||
+       !animated_texture_pc_elem.hasAttribute("width") || !animated_texture_pc_elem.hasAttribute("height"))
         return {};
 
     auto actual_width_ok = false;
@@ -90,7 +91,7 @@ TextureParser::TextureResult TextureParser::parse(const QString& path, const boo
     const auto texture_width = animated_texture_pc_elem.attribute("width").toUInt(&width_ok);
     const auto texture_height = animated_texture_pc_elem.attribute("height").toUInt(&height_ok);
 
-    if(!actual_width_ok || !actual_height_ok)
+    if(!actual_width_ok || !actual_height_ok || !width_ok || !height_ok)
         return {};
 
     // parse frames

@@ -145,7 +145,7 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
     result = material->AddProperty(&double_sided, 1, AI_MATKEY_TWOSIDED);
 
     // test on transparency
-    if(geometry.m_IsBackgroundPlane)
+    if(geometry.m_IsPlane)
     {
         QImage texture(geometry.m_Texture.m_TextureOrgFile);
 

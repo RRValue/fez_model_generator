@@ -4,6 +4,7 @@
 #include "model/ArtObject.h"
 #include "model/Geometry.h"
 #include "model/BackgroundPlane.h"
+#include "model/Character.h"
 
 struct Level
 {
@@ -14,6 +15,7 @@ struct Level
     using ArtObjectGeometries = std::map<QString, Geometry>;
 
     using BackgroundPlanes = std::vector<BackgroundPlane>;
+    using Characters = std::vector<Character>;
 
     QString m_LevelName = {};
 
@@ -25,4 +27,6 @@ struct Level
     ArtObjectGeometries m_ArtObjectGeometries = {};
 
     BackgroundPlanes m_BackgroundPlanes = {};
+
+    Characters m_Characters = {};
 };

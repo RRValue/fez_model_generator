@@ -14,7 +14,7 @@ public:
     TextureParser();
     ~TextureParser();
 
-    TextureResult parse(const QString& path, const bool& isAnimated) noexcept;
+    TextureResult parse(const QString& path, const QString& name, const bool& isAnimated) noexcept;
 
 private:
     QDomDocument m_Document;

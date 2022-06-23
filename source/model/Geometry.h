@@ -18,5 +18,5 @@ struct Geometry
     Texture m_Texture = {};
     float m_Opacity = 1.0f;
     bool m_DoubleSided = true;
-    bool m_IsBackgroundPlane = false;
+    bool m_IsPlane = false;
 };
