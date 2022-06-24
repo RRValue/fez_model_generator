@@ -526,7 +526,8 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
         const auto texture = [this, &texture_path, &background_plane, &animated]() -> TextureResult {
             QMutexLocker locker(&sm_TextureCacheMutex);
 
-            const auto cache_texture = sm_TextureCache.find(texture_path);
+            const auto cache_key = texture_path + "/" + background_plane.m_Name;
+            const auto cache_texture = sm_TextureCache.find(cache_key);
 
             if(cache_texture != sm_TextureCache.cend())
                 return cache_texture->second;
@@ -536,7 +537,7 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
             if(!loaded_texture)
                 return {};
 
-            sm_TextureCache.insert(std::make_pair(texture_path + "/" + background_plane.m_Name, *loaded_texture));
+            sm_TextureCache.insert({cache_key, *loaded_texture});
 
             return loaded_texture;
         }();
@@ -666,10 +667,10 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
         const auto normal = Vec3f{0.0f, 0.0f, 1.0f};
         const auto move_out_vec = normal * 0.05f;
 
-        const auto p0 = Vec3f{-geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
-        const auto p1 = Vec3f{-geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
-        const auto p2 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
-        const auto p3 = Vec3f{geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
+        const auto p0 = Vec3f{-geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
+        const auto p1 = Vec3f{-geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
+        const auto p2 = Vec3f{geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
+        const auto p3 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
 
         const auto texture_coord_p = texture.m_IsAnimated ? std::get<1>(texture.m_TextureAnimationOffsets[0]) : Vec2f{0.0f, 0.0f};
         const auto texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? std::get<2>(texture.m_TextureAnimationOffsets[0]) : Vec2f{1.0f, 1.0f});
@@ -734,23 +735,71 @@ LevelParser::CharactersResult LevelParser::readCharacters(const QDomElement& ele
 
         character.m_Name = QString(npc_instance.attribute("name"));
 
+        // read actions
+        const auto actions_elem = npc_instance.firstChildElement("Actions");
+
+        if(actions_elem.isNull())
+            return {};
+
+        auto action_elem = actions_elem.firstChildElement("Action");
+        auto action_count = size_t(0);
+
+        while(!action_elem.isNull())
+        {
+            action_count++;
+
+            action_elem = action_elem.nextSiblingElement();
+        }
+
+        using Actions = std::vector<std::pair<QString, QString>>;
+        auto actions = Actions(action_count);
+
+        action_elem = actions_elem.firstChildElement("Action");
+        action_count = size_t(0);
+
+        while(!action_elem.isNull())
+        {
+            if(!action_elem.hasAttribute("key"))
+                return {};
+
+            const auto action_key = action_elem.attribute("key");
+
+            const auto npc_action_content = action_elem.firstChildElement("NpcActionContent");
+
+            if(npc_action_content.isNull())
+                return {};
+
+            if(!npc_action_content.hasAttribute("animationName"))
+                return {};
+
+            const auto action_animation_name = npc_action_content.attribute("animationName");
+
+            actions[action_count++] = {action_key, action_animation_name};
+            action_elem = action_elem.nextSiblingElement();
+        }
+
+        if(actions.empty())
+            return {};
+
         // read texture
         const auto texture_path = QDir(m_Path + "/../character animations").absolutePath();
+        const auto action_name = actions[0].second;
 
-        const auto texture = [this, &texture_path, &character]() -> TextureResult {
+        const auto texture = [this, &texture_path, &character, &action_name]() -> TextureResult {
             QMutexLocker locker(&sm_TextureCacheMutex);
 
-            const auto cache_texture = sm_TextureCache.find(texture_path);
+            const auto cache_key = texture_path + "/" + character.m_Name + "/" + action_name;
+            const auto cache_texture = sm_TextureCache.find(cache_key);
 
             if(cache_texture != sm_TextureCache.cend())
                 return cache_texture->second;
 
-            const auto loaded_texture = TextureParser().parse(texture_path, character.m_Name + "/idle" , true);
+            const auto loaded_texture = TextureParser().parse(texture_path, character.m_Name + "/" + action_name, true);
 
             if(!loaded_texture)
                 return {};
 
-            sm_TextureCache.insert(std::make_pair(texture_path + "/"+ character.m_Name + "/idle", *loaded_texture));
+            sm_TextureCache.insert(std::make_pair(cache_key, *loaded_texture));
 
             return loaded_texture;
         }();
@@ -810,12 +859,11 @@ LevelParser::CharactersResult LevelParser::parseCharacters(const Level::Characte
         character_res.m_Geometry.m_Indices = Geometry::Indices(6);
 
         const auto normal = Vec3f{0.0f, 0.0f, 1.0f};
-        const auto move_out_vec = normal * 0.05f;
 
-        const auto p0 = Vec3f{-geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
-        const auto p1 = Vec3f{-geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
-        const auto p2 = Vec3f{geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
-        const auto p3 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
+        const auto p0 = Vec3f{-geom_w / 2, geom_h / 2, 0.0f};
+        const auto p1 = Vec3f{-geom_w / 2, -geom_h / 2, 0.0f};
+        const auto p2 = Vec3f{geom_w / 2, geom_h / 2, 0.0f};
+        const auto p3 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f};
 
         const auto texture_coord_p = texture.m_IsAnimated ? std::get<1>(texture.m_TextureAnimationOffsets[0]) : Vec2f{0.0f, 0.0f};
         const auto texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? std::get<2>(texture.m_TextureAnimationOffsets[0]) : Vec2f{1.0f, 1.0f});
