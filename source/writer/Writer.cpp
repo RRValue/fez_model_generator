@@ -133,7 +133,6 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
     // load material
     aiString material_name(geometry.m_Texture.m_TextureName.toStdString());
     aiString diffuse_texture_filename(geometry.m_Texture.m_TextureName.toStdString());
-    aiString opacity_texture_filename(geometry.m_Texture.m_TextureName.toStdString());
     
     auto result = material->AddProperty(&material_name, AI_MATKEY_NAME);
     result = material->AddProperty(&diffuse_texture_filename, AI_MATKEY_TEXTURE_DIFFUSE(0));
@@ -161,7 +160,11 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
                     use_opacity = texture.pixelColor(x, y).alphaF() < 1.0f;
 
             if(use_opacity)
+            {
+                aiString opacity_texture_filename(geometry.m_Texture.m_TextureName.toStdString());
+
                 result = material->AddProperty(&opacity_texture_filename, AI_MATKEY_TEXTURE_OPACITY(0));
+            }
         }    
 
     }

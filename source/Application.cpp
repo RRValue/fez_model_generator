@@ -110,4 +110,7 @@ void Application::processLevels(const QString& path)
         waiter.addFuture(QtConcurrent::run(export_function, file, path));
 
     waiter.waitForFinished();
+
+    /*const auto level = LevelParser().parse("Z:/fez_data/export/levels/villageville_2d.xml");
+    LevelWriter("Z:/fez_data/export/lv_export/" + level->m_LevelName).writeLevel(*level);*/
 }
