@@ -1,6 +1,6 @@
 # Implementation Plan: FEZ Model Generator Modernization
 
-- **Spec:** [docs/superpowers/specs/2026-10-12-modernize-design.md](../superpowers/specs/2026-10-12-modernize-design.md)
+- **Spec:** [docs/specs/2026-10-12-modernize-design.md](../specs/2026-10-12-modernize-design.md)
 - **Branch:** `feature/fez_mode-777-modernize-and-refactor-current`
 - **Date:** 2026-10-12
 - **Retention:** plans in `docs/plans/` are never deleted; update this file in place as tasks complete.
@@ -31,6 +31,14 @@ without changing a single output byte. Phase 2 fixes known bugs, one deliberatel
 - **Golden test is its own CTest entry** (`add_test` running `fez_tests "[.golden]"`, label `golden`) because
   `catch_discover_tests` does not register hidden tests.
 - **Namespace `fez`** is introduced in one mechanical task (Task 8) instead of piecemeal, to avoid mixed qualification.
+- **`--jobs` defaults to `QThread::idealThreadCount()`** rather than the spec's `std::thread::hardware_concurrency()`:
+  the pool is a `QThreadPool`, and this is the value it would pick itself.
+- **Tests run inside a `QCoreApplication`:** `fez_tests` has its own `main` (links `Catch2::Catch2`, not
+  `Catch2WithMain`) that constructs a `QCoreApplication` before `Catch::Session::run`. Tests use `QProcess`,
+  `QImage` and `QtConcurrent`, which are only reliable with an application object.
+- **Byte-identity includes which files exist.** Today a level fails as a whole when any section element is missing or
+  any referenced asset fails, and the writer emits one mesh and one material per instance (no deduplication). Phase 1
+  preserves these rules explicitly; they decide which files and material entries appear in the output.
 
 ## Common Commands
 
@@ -80,6 +88,8 @@ Phase 2:  T28 … T33 (independent of each other, each depends on T27)
 the VS 18 generator, switch to C++26, and fix only what `/std:c++latest` needs to compile. No behavior change.
 
 **Acceptance criteria:**
+- [ ] `cmake_minimum_required(VERSION 3.25)` (presets with `$env{}`, `catch_discover_tests(... DL_PATHS)` and
+      `qt_generate_deploy_app_script` all need newer than the current 3.16).
 - [ ] `CMakeLists.txt` uses `find_package(assimp CONFIG REQUIRED)`, `find_package(Eigen3 CONFIG REQUIRED)`,
       `find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Xml Concurrent)` (Widgets until Task 2),
       `CMAKE_CXX_STANDARD 26`; no `RVDep`, no hard-coded `.lib`/`.dll` names, no `FILE(INSTALL …)`, no `bin/` in the
@@ -112,13 +122,15 @@ root instead of the input root. Qt Widgets and the dialog are removed.
 **Acceptance criteria:**
 - [ ] `fez_model_generator --input <dir> --output <out>` writes `ao_export/`, `ts_export/`, `lv_export/` below
       `<out>`; without `--input` it prints usage and exits with code 2.
-- [ ] Output with `--output <fresh dir>` is byte-identical to the old dialog run on the same input (spot-checked by
-      diffing a fresh dialog-build run against a CLI run).
+- [ ] Output with `--output <fresh dir>` is byte-identical to a Task 1 (dialog build) run on the same input: a
+      **full-tree** comparison of `ao_export/`, `ts_export/`, `lv_export/` (recursive hash compare or `fc /b` over
+      every file), not a spot check. This anchors golden `v1` to the truly unchanged code.
 - [ ] `Qt6::Widgets` and `QFileDialog` are no longer referenced.
 
 **Verification:**
 - [ ] Build succeeds.
-- [ ] Manual: run on the FEZ export into a fresh dir; `fc /b` a few `.obj`/`.mtl` files against the dialog run.
+- [ ] Manual: run the Task 1 binary via the dialog and the Task 2 binary via `--input/--output`, both into fresh
+      dirs; the full-tree comparison reports no missing, extra or differing files.
 
 **Dependencies:** Task 1
 
@@ -150,12 +162,16 @@ deterministic.
 
 ### Task 4: Catch2 wiring and the directory-tree comparator
 
-**Description:** Add the `tests/` subproject with `fez_tests` (`Catch2::Catch2WithMain`, `catch_discover_tests` with
-`DL_PATHS` for Qt and vcpkg `bin`). Implement `compareTrees(expected, actual)` returning missing, extra and differing
-files, with the first differing line for `.obj`/`.mtl`.
+**Description:** Add the `tests/` subproject with `fez_tests` (links `Catch2::Catch2` and a custom
+`tests/support/main.cpp` that constructs a `QCoreApplication` and then runs `Catch::Session`; `catch_discover_tests`
+with `DL_PATHS` for Qt and vcpkg `bin`). The fixture root is injected as a compile definition
+`FEZ_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"`. Implement `compareTrees(expected, actual)` returning missing,
+extra and differing files, with the first differing line for `.obj`/`.mtl`.
 
 **Acceptance criteria:**
 - [ ] `ctest --preset windows-debug` discovers and runs Catch2 tests.
+- [ ] `fez_tests` runs its tests inside a live `QCoreApplication` (custom `main`, not `Catch2WithMain`).
+- [ ] Tests locate fixtures through `FEZ_TEST_DATA_DIR`; no relative paths that depend on the working directory.
 - [ ] `compareTrees` unit tests cover identical trees, missing file, extra file, binary difference and text
       difference with reported line number (trees built in `QTemporaryDir`).
 
@@ -165,7 +181,8 @@ files, with the first differing line for `.obj`/`.mtl`.
 **Dependencies:** Task 1
 
 **Files likely touched:** `CMakeLists.txt`, `CMakePresets.json` (test presets), `tests/CMakeLists.txt`,
-`tests/support/TreeCompare.h`, `tests/support/TreeCompare.cpp`, `tests/unit/TreeCompareTests.cpp`
+`tests/support/main.cpp`, `tests/support/TreeCompare.h`, `tests/support/TreeCompare.cpp`,
+`tests/unit/TreeCompareTests.cpp`
 
 **Estimated scope:** M
 
@@ -174,9 +191,12 @@ files, with the first differing line for `.obj`/`.mtl`.
 **Description:** A `[.golden]` test runs `fez_model_generator` (path injected via
 `$<TARGET_FILE:fez_model_generator>`) with `QProcess` into a `QTemporaryDir` and compares against `FEZ_GOLDEN_DIR`.
 Skips (Catch2 `SKIP`) when `FEZ_DATA_DIR`/`FEZ_GOLDEN_DIR` are unset. Registered via `add_test` with label `golden`.
+Because this test is registered by hand, it does not receive the `DL_PATHS` of `catch_discover_tests`; set
+`ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:<Qt bin>;<vcpkg bin>"` on it so both `fez_tests` and the
+`QProcess` child find their DLLs.
 
 **Acceptance criteria:**
-- [ ] `ctest --preset windows-debug -L golden` passes against `golden/v1`.
+- [ ] `ctest --preset windows-debug -L golden` passes against `golden/v1` without Qt or vcpkg on the caller's `PATH`.
 - [ ] Temporarily editing one byte of a reference `.mtl` copy makes the test fail with file name and line.
 - [ ] Default `ctest --preset windows-debug` does not run the golden test.
 
@@ -225,11 +245,14 @@ Skips (Catch2 `SKIP`) when `FEZ_DATA_DIR`/`FEZ_GOLDEN_DIR` are unset. Registered
 one trile set with two triles, one level (`trileSetName`, two trile emplacements incl. two orientations, one AO
 instance, one static and one animated background plane, one NPC with one action), plus 2×2 PNGs (one with a
 translucent pixel) and the animated-texture XMLs. Generate `tests/data/mini_expected/` with the current binary and
-commit it. Test runs the CLI into a temp dir and compares with `compareTrees`.
+commit it. The test first copies `mini_export/` into a `QTemporaryDir` and runs the CLI with that copy as `--input`
+and a second temp dir as `--output`, then compares with `compareTrees`. The copy is required: until Task 16,
+`TrileSetParser` creates `exported/` inside the *input* tree, which would dirty the committed fixture on every run.
 
 **Acceptance criteria:**
 - [ ] The mini export converts without failures; `mini_expected` contains all three export folders.
 - [ ] The test is part of the default `ctest` run and takes < 5 s.
+- [ ] `git status` is clean after running the test (the committed fixture is never used as `--input` directly).
 - [ ] Manual: `mini_expected` level OBJ opened in Blender shows triles, AO, both planes and NPC.
 
 **Verification:**
@@ -370,6 +393,8 @@ site keeps the integer division `float(width / 16)` (fixed in Task 28).
 - [ ] Fixture tests (`tests/data/parser/geometry_*.xml`): one quad with two faces; index count not divisible by 3;
       missing `Vector3` attribute; invalid normal side.
 - [ ] Index storage and winding unchanged.
+- [ ] No assimp include remains anywhere in `parser/` (`GeometryParser.cpp` currently includes `assimp/Exporter.hpp`
+      and `assimp/scene.h` without using them).
 
 **Verification:**
 - [ ] Tests pass: `fez_tests.exe "[parser]"`; golden passes.
@@ -451,6 +476,10 @@ NPC descriptors) and `parseLevel(path) -> std::expected<LevelDescription, Error>
 
 **Acceptance criteria:**
 - [ ] Fixture tests for the trile and AO sections incl. quaternion order (w,x,y,z) and missing `trileSetName`.
+- [ ] Failure conditions preserved: a missing `Triles` or `ArtObjects` element, a missing `Entry` child
+      (`TrileEmplacement`, `TrileInstance`, `Position/Vector3`, `ArtObjectInstance`, `Rotation/Quaternion`,
+      `Scale/Vector3`) or any unparsable attribute fails the whole level, exactly as `LevelParser` does today. Tests
+      assert the error for each; no section may become optional.
 - [ ] `readTrileEmplacements`/`readArtObjects` removed from `LevelParser`.
 
 **Verification:**
@@ -471,6 +500,9 @@ and `NonplayerCharacters` (name, actions, position) sections to `parseLevel`; te
 
 **Acceptance criteria:**
 - [ ] Fixture tests: invalid `animated` value → `BadValue`; NPC without actions → error; first action recorded.
+- [ ] Failure conditions preserved: a level without a `BackgroundPlanes` or `NonplayerCharacters` element fails as a
+      whole (today's behavior), as does any missing attribute (`textureName`, `animated`, `opacity`, `doubleSided`,
+      NPC `name`, action `key`, `animationName`). Tests assert this; the sections stay mandatory.
 - [ ] `readBackgroundPlanes`/`readCharacters` removed from `LevelParser`.
 
 **Verification:**
@@ -514,6 +546,8 @@ deleted.
 
 **Acceptance criteria:**
 - [ ] Test with a fake repository: missing AO → level error; id −1 skipped; plane quad uses first animation frame.
+- [ ] Failure conditions preserved: a failed trile set, a trile id (other than −1) absent from the set, a failed AO,
+      or a failed plane/NPC texture fails the whole level and produces no output for it, as today.
 - [ ] `LevelParser.h/.cpp` removed.
 
 **Verification:**
@@ -536,6 +570,9 @@ deleted.
 **Acceptance criteria:**
 - [ ] Tests: mesh/material/node counts; winding `(0,2,1)`; quaternion for orientations 0–3; −0.5 offset; opacity
       texture property only for planes with translucent pixels.
+- [ ] One mesh **and** one material per instance, in XML order, with no deduplication: two emplacements of the same
+      trile produce two meshes and two materials, as `Writer::addGeometry` does today. A test asserts this (the OBJ
+      exporter writes every material to the `.mtl`, so deduplicating would change the output).
 - [ ] No `new aiMesh*[`/`memcpy` reallocation remains.
 
 **Verification:**
@@ -599,8 +636,8 @@ no-overwrite semantics as today). `Writer`, `GeometryWriter`, `LevelWriter` are 
 
 ### Task 25: CLI options and exit codes
 
-**Description:** Add `--only ao,ts,lv`, `--jobs N` (default `QThread::idealThreadCount()`), `--verbose`; print a
-failure summary; exit 0 / 1 (any asset failed) / 2 (usage).
+**Description:** Add `--only ao,ts,lv`, `--jobs N` (default `QThread::idealThreadCount()`, see Architecture
+Decisions), `--verbose`; print a failure summary; exit 0 / 1 (any asset failed) / 2 (usage).
 
 **Acceptance criteria:**
 - [ ] `--only lv` produces only `lv_export/`; invalid `--only` value → exit 2 with message.
@@ -792,6 +829,8 @@ policy decided in Open Questions.
 | Golden test runtime (full export) | Low | Opt-in label `golden`; run at checkpoints and before commits touching core code. |
 | `QFile::copy` no-overwrite hides stale textures | Medium | Fresh temp dirs in all tests; policy revisited in Task 32. |
 | Blocking on `shared_future` inside `QThreadPool` workers reduces parallelism | Low | Loads run on the requesting thread (no deadlock); only waiting threads idle briefly. |
+| NPC textures are named `<npc>/<action>.ani.png`, so their copy destination has a nested directory that `Writer::save` creates with `QDir::mkdir(".")`; these copies may fail silently today | Medium | Phase 1 reproduces the behavior unchanged (golden decides). Task 32 surfaces the failures; fixing them adds files to `lv_export/` and therefore requires a new golden version. |
+| `exported/` side effect in the input tree (until Task 16) | Low | Golden and mini tests never use a committed or reference directory as `--input` directly (Task 7 copies the fixture); comparisons only cover the output root. |
 
 ## Open Questions
 
