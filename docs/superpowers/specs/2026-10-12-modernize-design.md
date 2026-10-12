@@ -84,8 +84,7 @@ tools/blender/all_texture_sample_closest.py
   `find_package(Eigen3 CONFIG REQUIRED)` → `Eigen3::Eigen`;
   `find_package(Catch2 3 CONFIG REQUIRED)` → `Catch2::Catch2WithMain`.
 - Qt 6 from the developer's own Qt install via `CMAKE_PREFIX_PATH` in `CMakeUserPresets.json`;
-  components `Core Gui Xml`. `Widgets` is dropped. `Concurrent` is linked only while `QtConcurrent` is still in use
-  (Phase 0 and Phase 1 steps 1–8) and removed in Phase 1 step 9.
+  components `Core Gui Xml Concurrent`. `Widgets` is dropped; `Concurrent` is now linked explicitly.
 - assimp DLLs are deployed next to the executable by vcpkg app-local deployment.
   Qt DLLs are deployed only on install via `qt_generate_deploy_app_script`.
 - Tests get Qt and vcpkg `bin` directories on `PATH` via `catch_discover_tests(... DL_PATHS ...)`.
@@ -123,7 +122,7 @@ Existing style is kept: `m_` member prefix, PascalCase types, existing `.clang-f
 Dependency direction: `model` ← `xml` ← `parser` ← `repository`, `level` ← `export` ← `pipeline` ← `cli`.
 
 C++ features used where MSVC ships them: `std::expected`, `std::print`/`std::format`, `std::numbers::pi_v<float>`,
-ranges/views, `std::span`, designated initializers, `std::jthread`/`std::stop_token`.
+ranges/views, `std::span`, designated initializers. Parallelism stays on `QtConcurrent` (see section 6).
 
 ## 5. CLI (`src/cli`)
 
@@ -142,14 +141,15 @@ fez_model_generator --input <export-dir> [--output <dir>] [--only ao,ts,lv] [--j
 
 ```
 cli → Options → pipeline
-  convertArtObjects: "art objects/*.xml" → parallelFor: repo.artObject → SceneBuilder → exportObj → TextureCopier
-  convertTrileSets:  "trile sets/*.xml"  → parallelFor: repo.trileSet  → per trile: SceneBuilder → exportObj → TextureCopier
-  convertLevels:     "levels/*.xml"      → parallelFor: parseLevel → resolveLevel(repo) → SceneBuilder → exportObj → TextureCopier
+  convertArtObjects: "art objects/*.xml" → blockingMapped: repo.artObject → SceneBuilder → exportObj → TextureCopier
+  convertTrileSets:  "trile sets/*.xml"  → blockingMapped: repo.trileSet  → per trile: SceneBuilder → exportObj → TextureCopier
+  convertLevels:     "levels/*.xml"      → blockingMapped: parseLevel → resolveLevel(repo) → SceneBuilder → exportObj → TextureCopier
 ```
 
-- Phases run sequentially; files within a phase run in parallel via `parallelFor(items, jobs, fn)`: a pool of
-  `--jobs` `std::jthread`s pulling indices from a `std::atomic<size_t>`. (`std::execution::par` was rejected because it
-  cannot bound the thread count.)
+- Phases run sequentially; files within a phase run in parallel via
+  `QtConcurrent::blockingMapped(&pool, files, convertOne)`, where `pool` is a pipeline-owned `QThreadPool` with
+  `setMaxThreadCount(--jobs)`. `convertOne` returns a per-file result; the mapped results are collected into the
+  `ConversionReport` in input order. No `QFutureSynchronizer`.
 - Each output file is written by exactly one task; mesh and node order follow XML order. Parallelism cannot
   change file contents.
 - `AssetRepository` uses `std::mutex` + `std::map<Key, std::shared_future<Result>>`: the first requester loads
@@ -217,7 +217,8 @@ result is compared byte-for-byte with committed `tests/data/mini_expected/`. No 
 6. `AssetRepository` replaces static caches; `TrileSetParser` no longer creates `exported/` in the input folder.
 7. `level/` resolve.
 8. `SceneBuilder`, `exportObj`, `TextureCopier`; export errors reported.
-9. `pipeline/` with `parallelFor` (`std::jthread` pool) and `ConversionReport`; remove `Application` and `QtConcurrent`.
+9. `pipeline/` with `QtConcurrent::blockingMapped` on a `QThreadPool` sized by `--jobs`, and `ConversionReport`;
+   remove `Application`.
 10. `log/` replaces `qDebug`; README with build, vcpkg setup and usage.
 
 Unit tests are written alongside each step; new code is test-driven. The mini end-to-end test is added once the CLI
