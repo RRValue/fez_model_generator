@@ -3,6 +3,8 @@
 - **Spec:** [docs/specs/2026-10-12-modernize-design.md](../specs/2026-10-12-modernize-design.md)
 - **Branch:** `feature/fez_mode-777-modernize-and-refactor-current`
 - **Date:** 2026-10-12
+- **Tracking:** Beads epic `fez_mode-777`; tasks `fez_mode-777.1` – `fez_mode-777.33` (one per "Task N" below, dependencies wired as in the graph). Issue descriptions are self-contained; this file stays as the human-readable record.
+- **Execution rule:** every task is done in a fresh agent (new session or newly dispatched subagent); issues carry the `fresh-agent` label.
 - **Retention:** plans in `docs/plans/` are never deleted; update this file in place as tasks complete.
 
 ## Overview
