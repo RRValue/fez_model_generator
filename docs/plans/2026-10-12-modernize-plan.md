@@ -139,17 +139,29 @@ the VS 18 generator, switch to C++26, and fix only what `/std:c++latest` needs t
 root instead of the input root. Qt Widgets and the dialog are removed.
 
 **Acceptance criteria:**
-- [ ] `fez_model_generator --input <dir> --output <out>` writes `ao_export/`, `ts_export/`, `lv_export/` below
+- [x] `fez_model_generator --input <dir> --output <out>` writes `ao_export/`, `ts_export/`, `lv_export/` below
       `<out>`; without `--input` it prints usage and exits with code 2.
-- [ ] Output with `--output <fresh dir>` is byte-identical to a Task 1 (dialog build) run on the same input: a
+- [x] Output with `--output <fresh dir>` is byte-identical to a Task 1 (dialog build) run on the same input: a
       **full-tree** comparison of `ao_export/`, `ts_export/`, `lv_export/` (recursive hash compare or `fc /b` over
       every file), not a spot check. This anchors golden `v1` to the truly unchanged code.
-- [ ] `Qt6::Widgets` and `QFileDialog` are no longer referenced.
+- [x] `Qt6::Widgets` and `QFileDialog` are no longer referenced.
 
 **Verification:**
-- [ ] Build succeeds.
-- [ ] Manual: run the Task 1 binary via the dialog and the Task 2 binary via `--input/--output`, both into fresh
+- [x] Build succeeds.
+- [x] Manual: run the Task 1 binary via the dialog and the Task 2 binary via `--input/--output`, both into fresh
       dirs; the full-tree comparison reports no missing, extra or differing files.
+
+**Implementation notes (fez_mode-777.2):**
+- The executable is still `FezModelGenerator.exe` until the rename in Task 6. `QCommandLineParser` adds `--help`;
+  a missing `--input` prints the error and help text to stderr and exits with 2, and so does an `--input` that is
+  not an existing directory (small addition). `Qt6::Gui` stays linked (parsers use `QImage`).
+- Byte-identity check on the full export (`art objects`, `background planes`, `character animations`, `levels`,
+  top-level `trile sets` files copied twice from `Z:/fez_data/export` into fresh temp dirs): the Task 1 Debug binary
+  was driven through its folder dialog by UI automation (Win32 `WM_SETTEXT`/`BM_CLICK`), the Task 2 Debug binary ran
+  with `--input <copy B> --output <fresh dir>`. SHA-256 over every file: 1623 / 4737 / 2687 files in
+  `ao_export/` / `ts_export/` / `lv_export/` on both sides, 0 missing, 0 extra, 0 differing. Each Debug run took
+  ~56 min.
+- `TrileSetParser` still writes `trile sets/exported/` into the input tree (unchanged until Task 16).
 
 **Dependencies:** Task 1
 

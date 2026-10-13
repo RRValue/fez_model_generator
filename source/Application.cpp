@@ -7,28 +7,61 @@
 #include "writer/GeometryWriter.h"
 #include "writer/LevelWriter.h"
 
+#include <QtCore/QCommandLineParser>
 #include <QtCore/QDirIterator>
-#include <QtCore/QStandardPaths>
+#include <QtCore/QFileInfo>
 #include <QtCore/QFutureSynchronizer>
-
-#include <QtWidgets/QFileDialog>
+#include <QtCore/QTextStream>
 
 #include <QtConcurrent/QtConcurrentRun>
 
 void Application::onRun()
 {
-    const auto path = QFileDialog::getExistingDirectory(nullptr, "Export", QStandardPaths::writableLocation(QStandardPaths::StandardLocation::DesktopLocation));
-    
-    processArtObjects(path);
-    processTrileSets(path);
-    processLevels(path);
+    static constexpr auto usage_error_code = 2;
+
+    QCommandLineParser parser;
+    parser.setApplicationDescription("Converts a FEZ export into OBJ models.");
+    parser.addHelpOption();
+
+    const auto input_option = QCommandLineOption("input", "FEZ export root (contains \"art objects\", \"trile sets\", \"levels\", ...).", "dir");
+    const auto output_option = QCommandLineOption("output", "Output root for ao_export/, ts_export/ and lv_export/. Defaults to --input.", "dir");
+
+    parser.addOption(input_option);
+    parser.addOption(output_option);
+
+    parser.process(arguments());
+
+    auto err = QTextStream(stderr);
+
+    if(!parser.isSet(input_option))
+    {
+        err << "Error: --input is required.\n\n" << parser.helpText();
+        err.flush();
+        exit(usage_error_code);
+        return;
+    }
+
+    const auto input_path = parser.value(input_option);
+    const auto output_path = parser.isSet(output_option) ? parser.value(output_option) : input_path;
+
+    if(!QFileInfo(input_path).isDir())
+    {
+        err << "Error: input directory \"" << input_path << "\" does not exist.\n";
+        err.flush();
+        exit(usage_error_code);
+        return;
+    }
+
+    processArtObjects(input_path, output_path);
+    processTrileSets(input_path, output_path);
+    processLevels(input_path, output_path);
 
     exit();
 }
 
-void Application::processArtObjects(const QString& path)
+void Application::processArtObjects(const QString& input_path, const QString& output_path)
 {
-    auto ao_xml_iter = QDirIterator(path + "/art objects", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
+    auto ao_xml_iter = QDirIterator(input_path + "/art objects", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
     QStringList art_objects_files;
 
@@ -50,14 +83,14 @@ void Application::processArtObjects(const QString& path)
     auto waiter = QFutureSynchronizer<void>();
 
     for(const auto& file : art_objects_files)
-        waiter.addFuture(QtConcurrent::run(export_function, file, path));
+        waiter.addFuture(QtConcurrent::run(export_function, file, output_path));
 
     waiter.waitForFinished();
 }
 
-void Application::processTrileSets(const QString& path)
+void Application::processTrileSets(const QString& input_path, const QString& output_path)
 {
-    auto ts_xml_iter = QDirIterator(path + "/trile sets", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
+    auto ts_xml_iter = QDirIterator(input_path + "/trile sets", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
     QStringList trile_set_files;
 
@@ -80,14 +113,14 @@ void Application::processTrileSets(const QString& path)
     auto waiter = QFutureSynchronizer<void>();
 
     for(const auto& file : trile_set_files)
-        waiter.addFuture(QtConcurrent::run(export_function, file, path));
+        waiter.addFuture(QtConcurrent::run(export_function, file, output_path));
 
     waiter.waitForFinished();
 }
 
-void Application::processLevels(const QString& path)
+void Application::processLevels(const QString& input_path, const QString& output_path)
 {
-    auto lvl_xml_iter = QDirIterator(path + "/levels", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
+    auto lvl_xml_iter = QDirIterator(input_path + "/levels", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
     QStringList level_files;
 
@@ -107,7 +140,7 @@ void Application::processLevels(const QString& path)
     auto waiter = QFutureSynchronizer<void>();
 
     for(const auto& file : level_files)
-        waiter.addFuture(QtConcurrent::run(export_function, file, path));
+        waiter.addFuture(QtConcurrent::run(export_function, file, output_path));
 
     waiter.waitForFinished();
 

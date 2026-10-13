@@ -1,19 +1,19 @@
 #pragma once
 
-#include <QtWidgets/QApplication>
+#include <QtCore/QCoreApplication>
 
-class Application : public QApplication
+class Application : public QCoreApplication
 {
     Q_OBJECT;
 
 public:
-    using QApplication::QApplication;
+    using QCoreApplication::QCoreApplication;
 
 public slots:
     void onRun();
 
 private:
-    void processArtObjects(const QString& path);
-    void processTrileSets(const QString& path);
-    void processLevels(const QString& path);
+    void processArtObjects(const QString& input_path, const QString& output_path);
+    void processTrileSets(const QString& input_path, const QString& output_path);
+    void processLevels(const QString& input_path, const QString& output_path);
 };

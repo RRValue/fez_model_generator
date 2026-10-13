@@ -53,7 +53,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # --- Dependencies -------------------------------------------------------------
 find_package(assimp CONFIG REQUIRED)
 find_package(Eigen3 CONFIG REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Xml Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Xml Concurrent)
 
 qt_standard_project_setup()
 
@@ -73,7 +73,6 @@ target_link_libraries(FezModelGenerator PRIVATE
     Eigen3::Eigen
     Qt6::Core
     Qt6::Gui
-    Qt6::Widgets
     Qt6::Xml
     Qt6::Concurrent
 )
