@@ -32,10 +32,22 @@ const QByteArray validArtObject = "<Entry><ArtObjectInstance name=\"ao\">"
                                   "<Rotation><Quaternion x=\"0\" y=\"0\" z=\"0\" w=\"1\"/></Rotation>"
                                   "<Scale><Vector3 x=\"1\" y=\"1\" z=\"1\"/></Scale></ArtObjectInstance></Entry>";
 
-QByteArray level(const QByteArray& triles, const QByteArray& artObjects)
+const QByteArray validPlane = "<Entry><BackgroundPlane textureName=\"plane\" animated=\"false\" doubleSided=\"true\" opacity=\"1\">"
+                              "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position>"
+                              "<Rotation><Quaternion x=\"0\" y=\"0\" z=\"0\" w=\"1\"/></Rotation>"
+                              "<Scale><Vector3 x=\"1\" y=\"1\" z=\"1\"/></Scale></BackgroundPlane></Entry>";
+
+const QByteArray validNpc = "<Entry><NpcInstance name=\"npc\">"
+                            "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position>"
+                            "<Actions><Action key=\"Idle\"><NpcActionContent animationName=\"idle\"/></Action></Actions>"
+                            "</NpcInstance></Entry>";
+
+QByteArray level(const QByteArray& triles, const QByteArray& artObjects, const QByteArray& planes = {},
+                 const QByteArray& npcs = {})
 {
     return "<Level name=\"L\" trileSetName=\"S\"><Triles>" + triles + "</Triles><ArtObjects>" + artObjects
-           + "</ArtObjects></Level>";
+           + "</ArtObjects><BackgroundPlanes>" + planes + "</BackgroundPlanes><NonplayerCharacters>" + npcs
+           + "</NonplayerCharacters></Level>";
 }
 
 std::expected<fez::LevelDescription, fez::Error> readInline(const QByteArray& xml)
@@ -161,7 +173,7 @@ TEST_CASE("readLevel rejects a document without Level element or header attribut
     });
 }
 
-TEST_CASE("readLevel accepts empty Triles and ArtObjects sections", "[level]")
+TEST_CASE("readLevel accepts empty sections", "[level]")
 {
     const auto description = readInline(level("", ""));
     REQUIRE(description.has_value());
@@ -169,6 +181,8 @@ TEST_CASE("readLevel accepts empty Triles and ArtObjects sections", "[level]")
     CHECK(description->m_TrileSetName == QStringLiteral("S"));
     CHECK(description->m_TrileEmplacements.empty());
     CHECK(description->m_ArtObjects.empty());
+    CHECK(description->m_BackgroundPlanes.empty());
+    CHECK(description->m_Npcs.empty());
 }
 
 TEST_CASE("readLevel rejects a level without Triles or ArtObjects element", "[level]")
@@ -312,4 +326,234 @@ TEST_CASE("readLevel checks the Triles section before the ArtObjects section", "
     const auto description = readInline(level("<Entry/>", "<Entry/>"));
     REQUIRE_FALSE(description.has_value());
     CHECK(description.error().source == "Level/Triles/Entry/TrileEmplacement");
+}
+
+TEST_CASE("parseLevel reads the BackgroundPlanes section", "[level]")
+{
+    const auto description = fez::parseLevel(fixture(QStringLiteral("level_valid.xml")));
+    REQUIRE(description.has_value());
+
+    const auto& planes = description->m_BackgroundPlanes;
+    REQUIRE(planes.size() == 2);
+
+    CHECK(planes[0].m_TextureName == QStringLiteral("fixture_plane"));
+    CHECK_FALSE(planes[0].m_Animated);
+    CHECK(planes[0].m_Opacity == 1.0f);
+    CHECK(planes[0].m_DoubleSided);
+    CHECK(planes[0].m_Position == Vec3f{0.5f, 1.5f, -0.5f});
+    CHECK(planes[0].m_Rotation.coeffs() == fez::QuaternionF::Identity().coeffs());
+    CHECK(planes[0].m_Scale == Vec3f{1.0f, 1.0f, 1.0f});
+
+    // Backslashes in the texture name become slashes; booleans are case-insensitive.
+    CHECK(planes[1].m_TextureName == QStringLiteral("sub/water_anim"));
+    CHECK(planes[1].m_Animated);
+    CHECK(planes[1].m_Opacity == 0.5f);
+    CHECK_FALSE(planes[1].m_DoubleSided);
+    CHECK(planes[1].m_Position == Vec3f{-1.0f, 2.0f, 3.5f});
+    CHECK(planes[1].m_Rotation.w() == 0.9f);
+    CHECK(planes[1].m_Rotation.x() == 0.1f);
+    CHECK(planes[1].m_Rotation.y() == 0.2f);
+    CHECK(planes[1].m_Rotation.z() == 0.3f);
+    CHECK(planes[1].m_Scale == Vec3f{2.0f, 0.5f, 1.0f});
+}
+
+TEST_CASE("parseLevel reads the NonplayerCharacters section with all actions in order", "[level]")
+{
+    const auto description = fez::parseLevel(fixture(QStringLiteral("level_valid.xml")));
+    REQUIRE(description.has_value());
+
+    const auto& npcs = description->m_Npcs;
+    REQUIRE(npcs.size() == 1);
+
+    CHECK(npcs[0].m_Name == QStringLiteral("fixture_npc"));
+    CHECK(npcs[0].m_Position == Vec3f{0.0f, 1.5f, 1.0f});
+
+    // The first action is recorded first (it decides the NPC texture).
+    REQUIRE(npcs[0].m_Actions.size() == 2);
+    CHECK(npcs[0].m_Actions[0].first == QStringLiteral("Idle"));
+    CHECK(npcs[0].m_Actions[0].second == QStringLiteral("idle"));
+    CHECK(npcs[0].m_Actions[1].first == QStringLiteral("Walk"));
+    CHECK(npcs[0].m_Actions[1].second == QStringLiteral("walk"));
+}
+
+TEST_CASE("readLevel replaces every backslash in a texture name and keeps an NPC name as written", "[level]")
+{
+    const QByteArray plane = "<Entry><BackgroundPlane textureName=\"a\\b\\c\" animated=\"False\" doubleSided=\"TRUE\" opacity=\"0.25\">"
+                             "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position>"
+                             "<Rotation><Quaternion x=\"0\" y=\"0\" z=\"0\" w=\"1\"/></Rotation>"
+                             "<Scale><Vector3 x=\"1\" y=\"1\" z=\"1\"/></Scale></BackgroundPlane></Entry>";
+    const QByteArray npc = "<Entry><NpcInstance name=\"some\\npc\">"
+                           "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position>"
+                           "<Actions><Action key=\"Talk\"><NpcActionContent animationName=\"talk\"/></Action></Actions>"
+                           "</NpcInstance></Entry>";
+
+    const auto description = readInline(level(validTrile, validArtObject, validPlane + plane, npc));
+    REQUIRE(description.has_value());
+
+    REQUIRE(description->m_BackgroundPlanes.size() == 2);
+    CHECK(description->m_BackgroundPlanes[1].m_TextureName == QStringLiteral("a/b/c"));
+    CHECK_FALSE(description->m_BackgroundPlanes[1].m_Animated);
+    CHECK(description->m_BackgroundPlanes[1].m_DoubleSided);
+    CHECK(description->m_BackgroundPlanes[1].m_Opacity == 0.25f);
+
+    // The NPC name is not rewritten (as before).
+    REQUIRE(description->m_Npcs.size() == 1);
+    CHECK(description->m_Npcs[0].m_Name == QStringLiteral("some\\npc"));
+}
+
+TEST_CASE("readLevel rejects a level without BackgroundPlanes or NonplayerCharacters element", "[level]")
+{
+    const QByteArray head = "<Level name=\"L\" trileSetName=\"S\"><Triles>" + validTrile + "</Triles><ArtObjects>"
+                            + validArtObject + "</ArtObjects>";
+
+    checkFailures({
+        {"no BackgroundPlanes", head + "<NonplayerCharacters>" + validNpc + "</NonplayerCharacters></Level>",
+         ErrorKind::MissingElement, "Level/BackgroundPlanes"},
+        {"no NonplayerCharacters", head + "<BackgroundPlanes>" + validPlane + "</BackgroundPlanes></Level>",
+         ErrorKind::MissingElement, "Level/NonplayerCharacters"},
+    });
+}
+
+TEST_CASE("readLevel fails the whole level for a broken background plane entry", "[level]")
+{
+    const auto broken = [](const QByteArray& entry) {
+        return level(validTrile, validArtObject, validPlane + "<Entry>" + entry + "</Entry>", validNpc);
+    };
+    const QByteArray position = "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position>";
+    const QByteArray rotation = "<Rotation><Quaternion x=\"0\" y=\"0\" z=\"0\" w=\"1\"/></Rotation>";
+    const QByteArray scale = "<Scale><Vector3 x=\"1\" y=\"1\" z=\"1\"/></Scale>";
+    const auto plane = [](const QByteArray& attributes, const QByteArray& content) {
+        return "<BackgroundPlane " + attributes + ">" + content + "</BackgroundPlane>";
+    };
+    const QByteArray valid = "textureName=\"t\" animated=\"false\" doubleSided=\"true\" opacity=\"1\"";
+    const QByteArray all = position + rotation + scale;
+    const std::string entry = "Level/BackgroundPlanes/Entry[2]/BackgroundPlane";
+
+    checkFailures({
+        {"no BackgroundPlane", broken(""), ErrorKind::MissingElement, entry},
+        {"textureName missing", broken(plane("animated=\"false\" doubleSided=\"true\" opacity=\"1\"", all)),
+         ErrorKind::MissingAttribute, entry + "@textureName"},
+        {"animated missing", broken(plane("textureName=\"t\" doubleSided=\"true\" opacity=\"1\"", all)),
+         ErrorKind::MissingAttribute, entry + "@animated"},
+        {"animated invalid", broken(plane("textureName=\"t\" animated=\"yes\" doubleSided=\"true\" opacity=\"1\"", all)),
+         ErrorKind::BadValue, entry + "@animated"},
+        {"animated empty", broken(plane("textureName=\"t\" animated=\"\" doubleSided=\"true\" opacity=\"1\"", all)),
+         ErrorKind::BadValue, entry + "@animated"},
+        {"opacity missing", broken(plane("textureName=\"t\" animated=\"false\" doubleSided=\"true\"", all)),
+         ErrorKind::MissingAttribute, entry + "@opacity"},
+        {"opacity not a number",
+         broken(plane("textureName=\"t\" animated=\"false\" doubleSided=\"true\" opacity=\"half\"", all)),
+         ErrorKind::BadValue, entry + "@opacity"},
+        {"doubleSided missing", broken(plane("textureName=\"t\" animated=\"false\" opacity=\"1\"", all)),
+         ErrorKind::MissingAttribute, entry + "@doubleSided"},
+        {"doubleSided invalid",
+         broken(plane("textureName=\"t\" animated=\"false\" doubleSided=\"1\" opacity=\"1\"", all)),
+         ErrorKind::BadValue, entry + "@doubleSided"},
+        {"no Position", broken(plane(valid, rotation + scale)), ErrorKind::MissingElement, entry + "/Position"},
+        {"no Position/Vector3", broken(plane(valid, "<Position/>" + rotation + scale)), ErrorKind::MissingElement,
+         entry + "/Position/Vector3"},
+        {"position y not a number",
+         broken(plane(valid, "<Position><Vector3 x=\"1\" y=\"y\" z=\"3\"/></Position>" + rotation + scale)),
+         ErrorKind::BadValue, entry + "/Position/Vector3@y"},
+        {"no Rotation", broken(plane(valid, position + scale)), ErrorKind::MissingElement, entry + "/Rotation"},
+        {"no Rotation/Quaternion", broken(plane(valid, position + "<Rotation/>" + scale)), ErrorKind::MissingElement,
+         entry + "/Rotation/Quaternion"},
+        {"quaternion x missing",
+         broken(plane(valid, position + "<Rotation><Quaternion y=\"0\" z=\"0\" w=\"1\"/></Rotation>" + scale)),
+         ErrorKind::MissingAttribute, entry + "/Rotation/Quaternion@x"},
+        {"no Scale", broken(plane(valid, position + rotation)), ErrorKind::MissingElement, entry + "/Scale"},
+        {"no Scale/Vector3", broken(plane(valid, position + rotation + "<Scale/>")), ErrorKind::MissingElement,
+         entry + "/Scale/Vector3"},
+        {"scale z missing", broken(plane(valid, position + rotation + "<Scale><Vector3 x=\"1\" y=\"1\"/></Scale>")),
+         ErrorKind::MissingAttribute, entry + "/Scale/Vector3@z"},
+    });
+}
+
+TEST_CASE("readLevel fails the whole level for a broken NPC entry", "[level]")
+{
+    const auto broken = [](const QByteArray& entry) {
+        return level(validTrile, validArtObject, validPlane, validNpc + "<Entry>" + entry + "</Entry>");
+    };
+    const QByteArray position = "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position>";
+    const QByteArray actions = "<Actions><Action key=\"Idle\"><NpcActionContent animationName=\"idle\"/></Action></Actions>";
+    const auto npc = [](const QByteArray& content) { return "<NpcInstance name=\"n\">" + content + "</NpcInstance>"; };
+    const std::string entry = "Level/NonplayerCharacters/Entry[2]/NpcInstance";
+
+    checkFailures({
+        {"no NpcInstance", broken(""), ErrorKind::MissingElement, entry},
+        {"name missing", broken("<NpcInstance>" + position + actions + "</NpcInstance>"), ErrorKind::MissingAttribute,
+         entry + "@name"},
+        {"no Actions", broken(npc(position)), ErrorKind::MissingElement, entry + "/Actions"},
+        {"no actions", broken(npc(position + "<Actions/>")), ErrorKind::MissingElement, entry + "/Actions/Action"},
+        {"only non-Action elements", broken(npc(position + "<Actions><Other key=\"k\"/></Actions>")),
+         ErrorKind::MissingElement, entry + "/Actions/Action"},
+        {"action key missing",
+         broken(npc(position + "<Actions><Action><NpcActionContent animationName=\"idle\"/></Action></Actions>")),
+         ErrorKind::MissingAttribute, entry + "/Actions/Action@key"},
+        {"no NpcActionContent", broken(npc(position + "<Actions><Action key=\"Idle\"/></Actions>")),
+         ErrorKind::MissingElement, entry + "/Actions/Action/NpcActionContent"},
+        {"animationName missing",
+         broken(npc(position + "<Actions><Action key=\"Idle\"><NpcActionContent/></Action></Actions>")),
+         ErrorKind::MissingAttribute, entry + "/Actions/Action/NpcActionContent@animationName"},
+        {"broken second action",
+         broken(npc(position + "<Actions><Action key=\"Idle\"><NpcActionContent animationName=\"idle\"/></Action>"
+                               "<Action key=\"Walk\"/></Actions>")),
+         ErrorKind::MissingElement, entry + "/Actions/Action[2]/NpcActionContent"},
+        {"no Position", broken(npc(actions)), ErrorKind::MissingElement, entry + "/Position"},
+        {"no Position/Vector3", broken(npc("<Position/>" + actions)), ErrorKind::MissingElement,
+         entry + "/Position/Vector3"},
+        {"position x not a number", broken(npc("<Position><Vector3 x=\"a\" y=\"2\" z=\"3\"/></Position>" + actions)),
+         ErrorKind::BadValue, entry + "/Position/Vector3@x"},
+    });
+}
+
+TEST_CASE("readLevel reads plane, NPC and action entries from the first one on, whatever the following names", "[level]")
+{
+    const QByteArray otherPlane = "<Other><BackgroundPlane textureName=\"other\" animated=\"true\" doubleSided=\"false\" opacity=\"0\">"
+                                  "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position>"
+                                  "<Rotation><Quaternion x=\"0\" y=\"0\" z=\"0\" w=\"1\"/></Rotation>"
+                                  "<Scale><Vector3 x=\"1\" y=\"1\" z=\"1\"/></Scale></BackgroundPlane></Other>";
+    const QByteArray npc = "<Entry><NpcInstance name=\"npc\">"
+                           "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position>"
+                           "<Actions><Skipped key=\"no\"/><Action key=\"Idle\"><NpcActionContent animationName=\"idle\"/></Action>"
+                           "<Other key=\"Walk\"><NpcActionContent animationName=\"walk\"/></Other></Actions>"
+                           "</NpcInstance></Entry>";
+    const QByteArray otherNpc = "<Other><NpcInstance name=\"other\">"
+                                "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position>"
+                                "<Actions><Action key=\"Idle\"><NpcActionContent animationName=\"idle\"/></Action></Actions>"
+                                "</NpcInstance></Other>";
+
+    const auto description = readInline(
+        level(validTrile, validArtObject, "<Skipped/>" + validPlane + otherPlane, "<Skipped/>" + npc + otherNpc));
+    REQUIRE(description.has_value());
+
+    REQUIRE(description->m_BackgroundPlanes.size() == 2);
+    CHECK(description->m_BackgroundPlanes[1].m_TextureName == QStringLiteral("other"));
+
+    REQUIRE(description->m_Npcs.size() == 2);
+    CHECK(description->m_Npcs[1].m_Name == QStringLiteral("other"));
+
+    // Actions: elements before the first Action are skipped, every element after it is an action.
+    REQUIRE(description->m_Npcs[0].m_Actions.size() == 2);
+    CHECK(description->m_Npcs[0].m_Actions[0].first == QStringLiteral("Idle"));
+    CHECK(description->m_Npcs[0].m_Actions[1].first == QStringLiteral("Walk"));
+    CHECK(description->m_Npcs[0].m_Actions[1].second == QStringLiteral("walk"));
+
+    checkFailures({
+        {"trailing non-entry in BackgroundPlanes", level(validTrile, validArtObject, validPlane + "<Comment/>", validNpc),
+         ErrorKind::MissingElement, "Level/BackgroundPlanes/Comment/BackgroundPlane"},
+        {"trailing non-entry in NonplayerCharacters", level(validTrile, validArtObject, validPlane, validNpc + "<Comment/>"),
+         ErrorKind::MissingElement, "Level/NonplayerCharacters/Comment/NpcInstance"},
+    });
+}
+
+TEST_CASE("readLevel checks ArtObjects, BackgroundPlanes and NonplayerCharacters in this order", "[level]")
+{
+    const auto artObjectsFirst = readInline(level(validTrile, "<Entry/>", "<Entry/>", "<Entry/>"));
+    REQUIRE_FALSE(artObjectsFirst.has_value());
+    CHECK(artObjectsFirst.error().source == "Level/ArtObjects/Entry/ArtObjectInstance");
+
+    const auto planesFirst = readInline(level(validTrile, validArtObject, "<Entry/>", "<Entry/>"));
+    REQUIRE_FALSE(planesFirst.has_value());
+    CHECK(planesFirst.error().source == "Level/BackgroundPlanes/Entry/BackgroundPlane");
 }

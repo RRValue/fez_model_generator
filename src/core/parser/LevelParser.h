@@ -1,12 +1,11 @@
 #pragma once
 
 #include "model/Level.h"
+#include "model/LevelDescription.h"
 #include "model/Texture.h"
 
 #include <QtCore/QString>
 #include <QtCore/QMutex>
-
-#include <QtXml/QDomDocument>
 
 namespace fez
 {
@@ -34,8 +33,8 @@ public:
     LevelResult parse(const QString& path) noexcept;
 
 private:
-    BackgroundPlanesResult readBackgroundPlanes(const QDomElement& elem);
-    CharactersResult readCharacters(const QDomElement& elem);
+    BackgroundPlanesResult loadBackgroundPlaneTextures(const LevelDescription::BackgroundPlanes& backgroundPlanes);
+    CharactersResult loadCharacterTextures(const LevelDescription::Npcs& npcs);
 
     TrileGeometriesResult parseTrileEmplacements(const Level::TrileEmplacements& emplacements, const QString& trileSetName);
     ArtObjectGeometriesResult parseArtObjects(const Level::ArtObjects& artObjects);

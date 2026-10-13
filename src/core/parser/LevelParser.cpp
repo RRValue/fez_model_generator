@@ -7,8 +7,6 @@
 #include "parser/TrileSetParser.h"
 #include "parser/level/LevelReader.h"
 
-#include "xml/Xml.h"
-
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
@@ -52,34 +50,13 @@ LevelParser::~LevelParser()
 
 LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 {
-    qDebug() << "parsing: " << path;
-
-    QFileInfo info(path);
-
-    if(!info.exists())
-        return {};
-
-    m_Path = info.absolutePath();
-
-    // load
-    const auto document = loadXml(path);
-
-    if(!document)
-    {
-        if(document.error().kind == ErrorKind::XmlSyntax)
-            qDebug() << "Error: \"" + QString::fromStdString(document.error().message) + "\" at " + QString::fromStdString(document.error().source);
-
-        return {};
-    }
-
-    // header, Triles, ArtObjects
-    auto description = readLevel(*document);
+    // header, Triles, ArtObjects, BackgroundPlanes, NonplayerCharacters (logs "parsing:" and XML syntax errors)
+    auto description = parseLevel(path);
 
     if(!description)
         return {};
 
-    // readLevel succeeded, so the document has a Level element
-    const auto level_elem = document->firstChildElement("Level");
+    m_Path = QFileInfo(path).absolutePath();
 
     Level result;
 
@@ -103,7 +80,7 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
         return {};
 
     // BackgroundPlanes
-    auto background_planes = std::move(readBackgroundPlanes(level_elem));
+    auto background_planes = loadBackgroundPlaneTextures(description->m_BackgroundPlanes);
 
     if(!background_planes)
         return {};
@@ -115,7 +92,7 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 
     // Groups
     // NonplayerCharacters
-    auto characters = std::move(readCharacters(level_elem));
+    auto characters = loadCharacterTextures(description->m_Npcs);
 
     if(!characters)
         return {};
@@ -247,63 +224,21 @@ LevelParser::ArtObjectGeometriesResult LevelParser::parseArtObjects(const Level:
     return result;
 }
 
-LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDomElement& elem)
+LevelParser::BackgroundPlanesResult LevelParser::loadBackgroundPlaneTextures(const LevelDescription::BackgroundPlanes& backgroundPlanes)
 {
-    // read background planes
-    const auto background_planes_elem = elem.firstChildElement("BackgroundPlanes");
+    auto result = Level::BackgroundPlanes();
+    result.reserve(backgroundPlanes.size());
 
-    if(background_planes_elem.isNull())
-        return {};
-
-    // count backgroun planes
-    auto entry_elem = background_planes_elem.firstChildElement("Entry");
-    auto entry_count = size_t(0);
-
-    while(!entry_elem.isNull())
-    {
-        entry_count++;
-
-        entry_elem = entry_elem.nextSiblingElement();
-    }
-
-    auto result = Level::BackgroundPlanes(entry_count);
-
-    // entry
-    entry_elem = background_planes_elem.firstChildElement("Entry");
-    entry_count = size_t(0);
-
-    while(!entry_elem.isNull())
+    for(const auto& description : backgroundPlanes)
     {
         auto background_plane = BackgroundPlane();
 
-        // read BackgroundPlane
-        const auto background_plane_elem = entry_elem.firstChildElement("BackgroundPlane");
+        background_plane.m_Name = description.m_TextureName;
 
-        if(background_plane_elem.isNull())
-            return {};
-
-        if(!background_plane_elem.hasAttribute("textureName"))
-            return {};
-
-        background_plane.m_Name = QString(background_plane_elem.attribute("textureName")).replace('\\', '/');
-
-        // read texture
-        if(!background_plane_elem.hasAttribute("animated"))
-            return {};
-
-        const auto animated_str = background_plane_elem.attribute("animated");
-        auto animated = false;
-
-        if(animated_str.compare("true", Qt::CaseInsensitive) == 0)
-            animated = true;
-        else if(animated_str.compare("false", Qt::CaseInsensitive) == 0)
-            animated = false;
-        else
-            return {};
-
+        // load texture
         const auto texture_path = QDir(m_Path + "/../background planes").absolutePath();
 
-        const auto texture = [this, &texture_path, &background_plane, &animated]() -> TextureResult {
+        const auto texture = [this, &texture_path, &background_plane, &description]() -> TextureResult {
             QMutexLocker locker(&sm_TextureCacheMutex);
 
             const auto cache_key = texture_path + "/" + background_plane.m_Name;
@@ -312,7 +247,7 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
             if(cache_texture != sm_TextureCache.cend())
                 return cache_texture->second;
 
-            const auto loaded_texture = loadTexture(texture_path, background_plane.m_Name, animated);
+            const auto loaded_texture = loadTexture(texture_path, background_plane.m_Name, description.m_Animated);
 
             if(!loaded_texture)
                 return {};
@@ -327,101 +262,14 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
 
         background_plane.m_Geometry.m_Texture = std::move(*texture);
 
-        // read opacity
-        if(!background_plane_elem.hasAttribute("opacity"))
-            return {};
+        background_plane.m_Geometry.m_Opacity = description.m_Opacity;
+        background_plane.m_Geometry.m_DoubleSided = description.m_DoubleSided;
 
-        auto opacity_ok = false;
-        background_plane.m_Geometry.m_Opacity = background_plane_elem.attribute("opacity").toFloat(&opacity_ok);
+        background_plane.m_Position = description.m_Position;
+        background_plane.m_Rotation = description.m_Rotation;
+        background_plane.m_Scale = description.m_Scale;
 
-        if(!opacity_ok)
-            return {};
-
-        // read double sided
-        if(!background_plane_elem.hasAttribute("doubleSided"))
-            return {};
-
-        const auto double_sided = background_plane_elem.attribute("doubleSided");
-
-        if(double_sided.compare("true", Qt::CaseInsensitive) == 0)
-            background_plane.m_Geometry.m_DoubleSided = true;
-        else if(double_sided.compare("false", Qt::CaseInsensitive) == 0)
-            background_plane.m_Geometry.m_DoubleSided = false;
-        else
-            return {};
-
-        // read position
-        const auto position_elem = background_plane_elem.firstChildElement("Position");
-
-        if(position_elem.isNull())
-            return {};
-
-        const auto pos_vec3_elem = position_elem.firstChildElement("Vector3");
-
-        if(pos_vec3_elem.isNull())
-            return {};
-
-        if(!pos_vec3_elem.hasAttribute("x") || !pos_vec3_elem.hasAttribute("y") || !pos_vec3_elem.hasAttribute("z"))
-            return {};
-
-        auto x_ok = false;
-        auto y_ok = false;
-        auto z_ok = false;
-
-        background_plane.m_Position = {pos_vec3_elem.attribute("x").toFloat(&x_ok),  //
-                                       pos_vec3_elem.attribute("y").toFloat(&y_ok),  //
-                                       pos_vec3_elem.attribute("z").toFloat(&z_ok)};
-
-        if(!x_ok || !y_ok || !z_ok)
-            return {};
-
-        // read rotation
-        const auto rotation_elem = background_plane_elem.firstChildElement("Rotation");
-
-        if(rotation_elem.isNull())
-            return {};
-
-        const auto quaterion_elem = rotation_elem.firstChildElement("Quaternion");
-
-        if(quaterion_elem.isNull())
-            return {};
-
-        if(!quaterion_elem.hasAttribute("x") || !quaterion_elem.hasAttribute("y") || !quaterion_elem.hasAttribute("z") || !quaterion_elem.hasAttribute("w"))
-            return {};
-
-        auto w_ok = false;
-
-        background_plane.m_Rotation = {quaterion_elem.attribute("w").toFloat(&w_ok),  //
-                                       quaterion_elem.attribute("x").toFloat(&x_ok),  //
-                                       quaterion_elem.attribute("y").toFloat(&y_ok),  //
-                                       quaterion_elem.attribute("z").toFloat(&z_ok)};
-
-        if(!x_ok || !y_ok || !z_ok || !w_ok)
-            return {};
-
-        // read scale
-        const auto scale_elem = background_plane_elem.firstChildElement("Scale");
-
-        if(scale_elem.isNull())
-            return {};
-
-        const auto scale_vec3_elem = scale_elem.firstChildElement("Vector3");
-
-        if(scale_vec3_elem.isNull())
-            return {};
-
-        if(!scale_vec3_elem.hasAttribute("x") || !scale_vec3_elem.hasAttribute("y") || !scale_vec3_elem.hasAttribute("z"))
-            return {};
-
-        background_plane.m_Scale = {scale_vec3_elem.attribute("x").toFloat(&x_ok),  //
-                                    scale_vec3_elem.attribute("y").toFloat(&y_ok),  //
-                                    scale_vec3_elem.attribute("z").toFloat(&z_ok)};
-
-        if(!x_ok || !y_ok || !z_ok)
-            return {};
-
-        result[entry_count++] = std::move(background_plane);
-        entry_elem = entry_elem.nextSiblingElement();
+        result.push_back(std::move(background_plane));
     }
 
     return result;
@@ -455,95 +303,24 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
     return result;
 }
 
-LevelParser::CharactersResult LevelParser::readCharacters(const QDomElement& elem)
+LevelParser::CharactersResult LevelParser::loadCharacterTextures(const LevelDescription::Npcs& npcs)
 {
-    // read background planes
-    const auto non_player_characters_elem = elem.firstChildElement("NonplayerCharacters");
+    auto result = Level::Characters();
+    result.reserve(npcs.size());
 
-    if(non_player_characters_elem.isNull())
-        return {};
-
-    // count backgroun planes
-    auto entry_elem = non_player_characters_elem.firstChildElement("Entry");
-    auto entry_count = size_t(0);
-
-    while(!entry_elem.isNull())
-    {
-        entry_count++;
-
-        entry_elem = entry_elem.nextSiblingElement();
-    }
-
-    auto result = Level::Characters(entry_count);
-
-    // entry
-    entry_elem = non_player_characters_elem.firstChildElement("Entry");
-    entry_count = size_t(0);
-
-    while(!entry_elem.isNull())
+    for(const auto& npc : npcs)
     {
         auto character = Character();
 
-        // read NpcInstance
-        const auto npc_instance = entry_elem.firstChildElement("NpcInstance");
+        character.m_Name = npc.m_Name;
 
-        if(npc_instance.isNull())
+        // parseLevel guarantees at least one action; the first one names the texture
+        if(npc.m_Actions.empty())
             return {};
 
-        if(!npc_instance.hasAttribute("name"))
-            return {};
-
-        character.m_Name = QString(npc_instance.attribute("name"));
-
-        // read actions
-        const auto actions_elem = npc_instance.firstChildElement("Actions");
-
-        if(actions_elem.isNull())
-            return {};
-
-        auto action_elem = actions_elem.firstChildElement("Action");
-        auto action_count = size_t(0);
-
-        while(!action_elem.isNull())
-        {
-            action_count++;
-
-            action_elem = action_elem.nextSiblingElement();
-        }
-
-        using Actions = std::vector<std::pair<QString, QString>>;
-        auto actions = Actions(action_count);
-
-        action_elem = actions_elem.firstChildElement("Action");
-        action_count = size_t(0);
-
-        while(!action_elem.isNull())
-        {
-            if(!action_elem.hasAttribute("key"))
-                return {};
-
-            const auto action_key = action_elem.attribute("key");
-
-            const auto npc_action_content = action_elem.firstChildElement("NpcActionContent");
-
-            if(npc_action_content.isNull())
-                return {};
-
-            if(!npc_action_content.hasAttribute("animationName"))
-                return {};
-
-            const auto action_animation_name = npc_action_content.attribute("animationName");
-
-            actions[action_count++] = {action_key, action_animation_name};
-            action_elem = action_elem.nextSiblingElement();
-        }
-
-        if(actions.empty())
-            return {};
-
-        // read texture
+        // load texture
         const auto texture_path = QDir(m_Path + "/../character animations").absolutePath();
-        const auto action_name = actions[0].second;
+        const auto action_name = npc.m_Actions[0].second;
 
         const auto texture = [this, &texture_path, &character, &action_name]() -> TextureResult {
             QMutexLocker locker(&sm_TextureCacheMutex);
@@ -569,33 +346,9 @@ LevelParser::CharactersResult LevelParser::readCharacters(const QDomElement& ele
 
         character.m_Geometry.m_Texture = std::move(*texture);
 
-        // read position
-        const auto position_elem = npc_instance.firstChildElement("Position");
+        character.m_Position = npc.m_Position;
 
-        if(position_elem.isNull())
-            return {};
-
-        const auto pos_vec3_elem = position_elem.firstChildElement("Vector3");
-
-        if(pos_vec3_elem.isNull())
-            return {};
-
-        if(!pos_vec3_elem.hasAttribute("x") || !pos_vec3_elem.hasAttribute("y") || !pos_vec3_elem.hasAttribute("z"))
-            return {};
-
-        auto x_ok = false;
-        auto y_ok = false;
-        auto z_ok = false;
-
-        character.m_Position = {pos_vec3_elem.attribute("x").toFloat(&x_ok),  //
-                                pos_vec3_elem.attribute("y").toFloat(&y_ok),  //
-                                pos_vec3_elem.attribute("z").toFloat(&z_ok)};
-
-        if(!x_ok || !y_ok || !z_ok)
-            return {};
-
-        result[entry_count++] = std::move(character);
-        entry_elem = entry_elem.nextSiblingElement();
+        result.push_back(std::move(character));
     }
 
     return result;

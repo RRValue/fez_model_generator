@@ -28,9 +28,11 @@ set(FEZ_CORE_SOURCES
     parser/LevelParser.cpp
     parser/LevelParser.h
     parser/level/ArtObjectSection.cpp
+    parser/level/BackgroundPlaneSection.cpp
     parser/level/LevelReader.cpp
     parser/level/LevelReader.h
     parser/level/LevelSections.h
+    parser/level/NpcSection.cpp
     parser/level/TrileSection.cpp
     parser/TextureParser.cpp
     parser/TextureParser.h

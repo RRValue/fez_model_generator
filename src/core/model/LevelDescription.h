@@ -16,7 +16,7 @@ namespace fez
 // A background plane as written in the level XML (no texture loaded, no quad built).
 struct BackgroundPlaneDescription
 {
-    QString m_TextureName;
+    QString m_TextureName;  // '\' already replaced by '/'
     bool m_Animated = false;
     float m_Opacity = 1.0f;
     bool m_DoubleSided = false;
@@ -28,7 +28,8 @@ struct BackgroundPlaneDescription
 // A non-player character as written in the level XML (no texture loaded, no quad built).
 struct NpcDescription
 {
-    using Actions = std::vector<std::pair<QString, QString>>;  // action key, animation name
+    using Actions = std::vector<std::pair<QString, QString>>;  // action key, animation name; never empty, the first
+                                                               // action names the NPC texture
 
     QString m_Name;
     Actions m_Actions = {};
@@ -47,8 +48,8 @@ struct LevelDescription
     QString m_TrileSetName = {};
     TrileEmplacements m_TrileEmplacements = {};
     ArtObjects m_ArtObjects = {};
-    BackgroundPlanes m_BackgroundPlanes = {};  // read from Task 19 on
-    Npcs m_Npcs = {};                          // read from Task 19 on
+    BackgroundPlanes m_BackgroundPlanes = {};
+    Npcs m_Npcs = {};
 };
 
 } // namespace fez

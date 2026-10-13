@@ -825,14 +825,40 @@ NPC descriptors) and `parseLevel(path) -> std::expected<LevelDescription, Error>
 and `NonplayerCharacters` (name, actions, position) sections to `parseLevel`; texture loading is *not* done here.
 
 **Acceptance criteria:**
-- [ ] Fixture tests: invalid `animated` value → `BadValue`; NPC without actions → error; first action recorded.
-- [ ] Failure conditions preserved: a level without a `BackgroundPlanes` or `NonplayerCharacters` element fails as a
+- [x] Fixture tests: invalid `animated` value → `BadValue`; NPC without actions → error; first action recorded.
+- [x] Failure conditions preserved: a level without a `BackgroundPlanes` or `NonplayerCharacters` element fails as a
       whole (today's behavior), as does any missing attribute (`textureName`, `animated`, `opacity`, `doubleSided`,
       NPC `name`, action `key`, `animationName`). Tests assert this; the sections stay mandatory.
-- [ ] `readBackgroundPlanes`/`readCharacters` removed from `LevelParser`.
+- [x] `readBackgroundPlanes`/`readCharacters` removed from `LevelParser`.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[level]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[level]"`; golden passes.
+
+**Implementation notes (fez_mode-777.19):**
+- `parser/level/BackgroundPlaneSection.cpp` (`level::readBackgroundPlanes`) and `parser/level/NpcSection.cpp`
+  (`level::readNpcs`), declared in `LevelSections.h`, are called by `readLevel` after ArtObjects (planes, then NPCs).
+  Plane attributes in the old order: `textureName` (every `\` → `/`), `animated` (`readBool`), `opacity`
+  (`attribute<float>`, i.e. `toFloat`), `doubleSided` (`readBool`), then `Position/Vector3`, `Rotation/Quaternion`
+  (w, x, y, z), `Scale/Vector3`. NPC: `name` (not rewritten), `Actions` (from the first `Action` on, every following
+  sibling element is an action: `key`, `NpcActionContent@animationName`), `Position/Vector3`. An NPC without any
+  `Action` child fails with `MissingElement` `…/Actions/Action` (the old `actions.empty()` check). All actions are
+  kept in order; the first names the texture. `LevelDescription` structs were used as declared in Task 18 (comments
+  only).
+- `LevelParser::parse` now calls `parseLevel(path)` (its own `parsing:`/XML-syntax log lines, `loadXml` call and
+  `QFileInfo::exists` check are gone; `parseLevel` logs the same lines and fails a missing file). `readBackgroundPlanes`
+  / `readCharacters` are replaced by `loadBackgroundPlaneTextures` / `loadCharacterTextures`, which only build
+  `BackgroundPlane`/`Character` from the descriptions and load textures through the unchanged static cache (removed
+  in Tasks 20/21). Quad building (`parseBackgroundPlanes` with integer division, `parseCharacters`) is unchanged.
+- **Kept behavior:** both sections are mandatory; every missing element/attribute, bad number or non-`true`/`false`
+  boolean fails the level; a missing texture still fails the level. Only the order of work changed: all level XML
+  checks now run before any texture is loaded (previously a plane's texture was loaded right after its `animated`
+  attribute), so a level that fails for both reasons may load (and cache) fewer textures; no effect on output.
+- Tests: `tests/unit/LevelReaderTests.cpp` (`[level]`) 20 test cases / 368 assertions; `level_valid.xml` got a second
+  (animated, backslashed) plane and a second NPC action. The inline `level()` helper now emits (by default empty)
+  `BackgroundPlanes`/`NonplayerCharacters` sections, since they are mandatory. Written first and seen failing (8 test
+  cases).
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[level]"` passed; `ctest --preset windows-debug` and
+  `windows-release` 120/120; `ctest --preset windows-release-golden` passed against `golden/v1` (483 s).
 
 **Dependencies:** Task 18
 

@@ -71,6 +71,19 @@
         </Scale>
       </BackgroundPlane>
     </Entry>
+    <Entry key="1">
+      <BackgroundPlane textureName="sub\water_anim" animated="TRUE" doubleSided="false" opacity="0.5">
+        <Position>
+          <Vector3 x="-1.0" y="2.0" z="3.5"/>
+        </Position>
+        <Rotation>
+          <Quaternion x="0.1" y="0.2" z="0.3" w="0.9"/>
+        </Rotation>
+        <Scale>
+          <Vector3 x="2.0" y="0.5" z="1.0"/>
+        </Scale>
+      </BackgroundPlane>
+    </Entry>
   </BackgroundPlanes>
   <NonplayerCharacters>
     <Entry key="0">
@@ -81,6 +94,9 @@
         <Actions>
           <Action key="Idle">
             <NpcActionContent animationName="idle"/>
+          </Action>
+          <Action key="Walk">
+            <NpcActionContent animationName="walk"/>
           </Action>
         </Actions>
       </NpcInstance>

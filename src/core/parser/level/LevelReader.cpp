@@ -68,6 +68,22 @@ std::expected<LevelDescription, Error> readLevel(const QDomDocument& document)
 
     result.m_ArtObjects = std::move(*art_objects);
 
+    // BackgroundPlanes
+    auto background_planes = level::readBackgroundPlanes(level_elem);
+
+    if(!background_planes)
+        return std::unexpected(background_planes.error());
+
+    result.m_BackgroundPlanes = std::move(*background_planes);
+
+    // NonplayerCharacters
+    auto npcs = level::readNpcs(level_elem);
+
+    if(!npcs)
+        return std::unexpected(npcs.error());
+
+    result.m_Npcs = std::move(*npcs);
+
     return result;
 }
 

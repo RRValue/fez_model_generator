@@ -22,10 +22,15 @@ std::expected<LevelDescription, Error> parseLevel(const QString& path);
 //    Position/Vector3, all read with QString::toFloat; trileId and orientation are then converted to int / unsigned)
 //  - ArtObjects: one ArtObject per entry (ArtObjectInstance name, Position/Vector3, Rotation/Quaternion read as
 //    w, x, y, z, Scale/Vector3)
-// Both sections are mandatory (MissingElement). Entries start at the first Entry child; every following sibling
+//  - BackgroundPlanes: one BackgroundPlaneDescription per entry (BackgroundPlane textureName with every '\' replaced
+//    by '/', animated, opacity, doubleSided, Position/Vector3, Rotation/Quaternion as w, x, y, z, Scale/Vector3)
+//  - NonplayerCharacters: one NpcDescription per entry (NpcInstance name, Actions, Position/Vector3). Actions start
+//    at the first Action child and every following sibling element is an action (key, NpcActionContent
+//    animationName); no Action child fails the level (MissingElement ".../Actions/Action").
+// All four sections are mandatory (MissingElement). Entries start at the first Entry child; every following sibling
 // element is read as an entry, whatever its name (as before). Any missing element (MissingElement), missing attribute
-// (MissingAttribute) or unparsable number (BadValue) fails the whole level.
-// BackgroundPlanes and NonplayerCharacters are not read yet (Task 19); m_BackgroundPlanes and m_Npcs stay empty.
+// (MissingAttribute), unparsable number or boolean other than true/false, case-insensitive (BadValue) fails the whole
+// level. No texture is loaded here.
 std::expected<LevelDescription, Error> readLevel(const QDomDocument& document);
 
 } // namespace fez

@@ -18,4 +18,10 @@ std::expected<LevelDescription::TrileEmplacements, Error> readTriles(const QDomE
 // Level/ArtObjects (ArtObjectSection.cpp).
 std::expected<LevelDescription::ArtObjects, Error> readArtObjects(const QDomElement& levelElem);
 
+// Level/BackgroundPlanes (BackgroundPlaneSection.cpp).
+std::expected<LevelDescription::BackgroundPlanes, Error> readBackgroundPlanes(const QDomElement& levelElem);
+
+// Level/NonplayerCharacters (NpcSection.cpp).
+std::expected<LevelDescription::Npcs, Error> readNpcs(const QDomElement& levelElem);
+
 } // namespace fez::level
