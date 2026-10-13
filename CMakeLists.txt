@@ -63,50 +63,12 @@ get_target_property(_fez_qmake Qt6::qmake IMPORTED_LOCATION)
 get_filename_component(FEZ_QT_BIN_DIR "${_fez_qmake}" DIRECTORY)
 set(FEZ_VCPKG_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/$<$<CONFIG:Debug>:debug/>bin")
 
-# --- Executable ---------------------------------------------------------------
-set(PROJECT_SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/source)
+# --- Options ------------------------------------------------------------------
+set(FEZ_DEBUG_ARGS "" CACHE STRING
+    "Command-line arguments for running fez_model_generator from the Visual Studio debugger (F5), e.g. --input <export> --output <fresh dir>")
 
-file(GLOB_RECURSE PROGRAMMFILES CONFIGURE_DEPENDS ${PROJECT_SRC_PATH}/*.cpp ${PROJECT_SRC_PATH}/*.h)
-
-qt_add_executable(FezModelGenerator ${PROGRAMMFILES})
-
-source_group(TREE ${PROJECT_SRC_PATH} PREFIX source FILES ${PROGRAMMFILES})
-
-target_include_directories(FezModelGenerator PRIVATE ${PROJECT_SRC_PATH})
-
-target_link_libraries(FezModelGenerator PRIVATE
-    assimp::assimp
-    Eigen3::Eigen
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Xml
-    Qt6::Concurrent
-)
-
-fez_set_project_warnings(FezModelGenerator)
-
-set_target_properties(FezModelGenerator PROPERTIES
-    VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:FezModelGenerator>"
-)
-
-# Make the build-tree executable runnable: assimp DLLs are copied by vcpkg
-# app-local deployment; Qt DLLs and plugins are deployed into the output
-# directory (never into the source tree). Install-time deployment follows later.
-if(WIN32)
-    find_program(FEZ_WINDEPLOYQT windeployqt HINTS "${FEZ_QT_BIN_DIR}" NO_DEFAULT_PATH)
-    if(NOT FEZ_WINDEPLOYQT)
-        message(FATAL_ERROR "windeployqt not found next to qmake in '${FEZ_QT_BIN_DIR}'.")
-    endif()
-
-    add_custom_command(TARGET FezModelGenerator POST_BUILD
-        COMMAND "${FEZ_WINDEPLOYQT}"
-                $<$<CONFIG:Debug>:--debug>$<$<NOT:$<CONFIG:Debug>>:--release>
-                --no-translations --no-compiler-runtime --verbose 0
-                "$<TARGET_FILE:FezModelGenerator>"
-        COMMENT "Deploying Qt runtime next to FezModelGenerator"
-        VERBATIM
-    )
-endif()
+# --- Targets: fez_core (src/core), fez_model_generator (src/cli) ---------------
+add_subdirectory(src)
 
 # --- Tests --------------------------------------------------------------------
 enable_testing()

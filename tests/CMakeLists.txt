@@ -19,6 +19,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX tests
 target_include_directories(fez_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(fez_tests PRIVATE
+    fez_core
     Catch2::Catch2
     Qt6::Core
 )
@@ -27,8 +28,8 @@ target_link_libraries(fez_tests PRIVATE
 target_compile_definitions(fez_tests PRIVATE FEZ_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 
 # The golden test runs the converter of the same configuration; building fez_tests builds it too.
-target_compile_definitions(fez_tests PRIVATE FEZ_MODEL_GENERATOR_EXE="$<TARGET_FILE:FezModelGenerator>")
-add_dependencies(fez_tests FezModelGenerator)
+target_compile_definitions(fez_tests PRIVATE FEZ_MODEL_GENERATOR_EXE="$<TARGET_FILE:fez_model_generator>")
+add_dependencies(fez_tests fez_model_generator)
 
 fez_set_project_warnings(fez_tests)
 

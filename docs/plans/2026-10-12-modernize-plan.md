@@ -302,12 +302,28 @@ Because this test is registered by hand, it does not receive the `DL_PATHS` of `
 `fez_model_generator` with explicit source lists; `fez_tests` links `fez_core`.
 
 **Acceptance criteria:**
-- [ ] No `FILE(GLOB…)`; every source is listed in `src/core/CMakeLists.txt` or `src/cli/CMakeLists.txt`.
-- [ ] `git log --follow` works for moved files (moves done with `git mv`, separate commit from edits).
-- [ ] `VS_DEBUGGER_COMMAND_ARGUMENTS` is set from cache variable `FEZ_DEBUG_ARGS`.
+- [x] No `FILE(GLOB…)`; every source is listed in `src/core/CMakeLists.txt` or `src/cli/CMakeLists.txt`.
+- [x] `git log --follow` works for moved files (moves done with `git mv`, separate commit from edits).
+- [x] `VS_DEBUGGER_COMMAND_ARGUMENTS` is set from cache variable `FEZ_DEBUG_ARGS`.
 
 **Verification:**
-- [ ] Build succeeds; `ctest --preset windows-debug` and `ctest --preset windows-release-golden` pass.
+- [x] Build succeeds; `ctest --preset windows-debug` and `ctest --preset windows-release-golden` pass.
+
+**Implementation notes (fez_mode-777.6):**
+- Layout: `src/CMakeLists.txt` adds `src/core` (static `fez_core`, `add_library`) and `src/cli` (`fez_model_generator`,
+  `qt_add_executable`); the target `FezModelGenerator` is renamed, so the exe is now
+  `build/windows-vs/bin/<Config>/fez_model_generator.exe` (the `project()` name is unchanged). `fez_core` has
+  `src/core` as `PUBLIC` include directory (includes stay `"parser/…"`, `"model/…"`), links `Eigen3::Eigen`,
+  `Qt6::Core`, `Qt6::Xml` publicly and `assimp::assimp`, `Qt6::Gui` privately; the CLI adds `Qt6::Concurrent`.
+  The `windeployqt` post-build step moved to `src/cli/CMakeLists.txt`; `fez_tests` links `fez_core`.
+- **Deviation – one commit:** moves and CMake edits are in a single commit, but no moved file was edited (every move
+  is a 100 % rename), so `git log --follow` follows each file across the move; only CMake files carry edits.
+- `FEZ_DEBUG_ARGS` (cache `STRING`, default empty, top-level `CMakeLists.txt`) feeds
+  `VS_DEBUGGER_COMMAND_ARGUMENTS`; checked by configuring with a probe value and finding it in
+  `fez_model_generator.vcxproj` for both configurations. `CMakeUserPresets.example.json` sets a placeholder.
+- Clean configure: `build/windows-vs` was emptied (an empty `bin/Release` folder was locked by another process and
+  could not be removed itself). Debug and Release build; `ctest --preset windows-debug` 14/14;
+  `ctest --preset windows-release-golden` passed against `golden/v1` (569 s).
 
 **Dependencies:** Task 5
 
