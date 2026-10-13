@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<ArtObject name="NO_GEOMETRY" noSilhouette="False" actorType="None">
+  <Size>
+    <Vector3 x="1.0" y="1.0" z="1.0"/>
+  </Size>
+</ArtObject>

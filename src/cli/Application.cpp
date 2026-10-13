@@ -69,8 +69,7 @@ void Application::processArtObjects(const QString& input_path, const QString& ou
         art_objects_files.push_back(ao_xml_iter.next());
 
     const auto export_function = [](const auto& file, const auto& path) -> void{
-        fez::ArtObjectParser parser;
-        const auto result = parser.parse(file);
+        const auto result = fez::parseArtObject(file);
 
         if(!result)
             return;

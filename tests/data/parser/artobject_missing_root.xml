@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<TrileSet name="NOT_AN_ART_OBJECT">
+  <ShaderInstancedIndexedPrimitives type="TriangleList">
+    <Vertices/>
+    <Indices/>
+  </ShaderInstancedIndexedPrimitives>
+</TrileSet>

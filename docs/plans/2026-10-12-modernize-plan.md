@@ -633,10 +633,29 @@ site keeps the integer division `float(width / 16)` (fixed in Task 28).
 `<name>.png` next to the XML).
 
 **Acceptance criteria:**
-- [ ] Fixture tests: valid art object; missing `ArtObject` root; missing file → `FileNotFound`.
+- [x] Fixture tests: valid art object; missing `ArtObject` root; missing file → `FileNotFound`.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[parser]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[parser]"`; golden passes.
+
+**Implementation notes (fez_mode-777.15):**
+- `parser/ArtObjectParser.{h,cpp}`: the `ArtObjectParser` class (and its `QDomDocument` member, the unused
+  `aiMesh`/`aiMaterial` forward declarations and the unused `out_folder_name`) is replaced by the free function
+  `parseArtObject(path) -> std::expected<Geometry, Error>`: `loadXml` (`FileNotFound`, `Io`, `XmlSyntax`), then
+  `QDomDocument::firstChildElement("ArtObject")` as before (`MissingElement`, source `ArtObject`), then `childElement`
+  for `ShaderInstancedIndexedPrimitives` (`MissingElement`, source `ArtObject/ShaderInstancedIndexedPrimitives`; the
+  old code passed the null element to `parseGeometry`, which also failed) and `parseGeometry`. Name stays
+  `QFileInfo::baseName()` (up to the first dot), texture `<name>.png` and `<absolute dir>/<name>.png`. The `parsing:`
+  and XML syntax `qDebug` lines are kept.
+- Callers: `LevelParser::parseArtObjects` keeps its directory/file existence checks and cache and calls
+  `parseArtObject`; `Application::processArtObjects` calls it and still skips a failed art object silently. This removes
+  one of the two `setContent` C4996 warnings.
+- `tests/unit/ArtObjectParserTests.cpp` (`[parser]`): 6 test cases (fixtures `tests/data/parser/artobject_valid.xml`,
+  `artobject_missing_root.xml`, `artobject_missing_geometry.xml`; dotted base name and malformed XML via
+  `QTemporaryDir`), written first and seen failing to compile.
+- Checks: Debug and Release build (no new warnings); `fez_tests.exe "[parser]"` 14 test cases / 90 assertions;
+  `ctest --preset windows-debug` and `windows-release` 73/73; `ctest --preset windows-release-golden` passed against
+  `golden/v1` (525 s).
 
 **Dependencies:** Task 14
 

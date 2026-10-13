@@ -1,8 +1,8 @@
 #include "parser/ArtObjectParser.h"
 
 #include "parser/GeometryParser.h"
+#include "xml/Xml.h"
 
-#include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 
 #include <qdebug.h>
@@ -10,65 +10,45 @@
 namespace fez
 {
 
-ArtObjectParser::ArtObjectParser() : m_Document{}
-{
-}
-
-ArtObjectParser::~ArtObjectParser()
-{
-}
-
-ArtObjectParser::GeometryResult ArtObjectParser::parse(const QString& path) noexcept
+std::expected<Geometry, Error> parseArtObject(const QString& path)
 {
     qDebug() << "parsing: " << path;
 
-    QFileInfo info(path);
-
-    if(!info.exists())
-        return {};
-
-    static const auto out_folder_name = "exported";
-
+    const QFileInfo info(path);
     const auto name = info.baseName();
     const auto org_path = info.absolutePath();
-    m_Document.clear();
 
-    // load
-    auto xml_file = QFile(path);
+    const auto document = loadXml(path);
 
-    if(!xml_file.exists())
-        return {};
-
-    if(!xml_file.open(QIODevice::OpenModeFlag::ReadOnly))
-        return {};
-
-    QString error_msg;
-    int error_line;
-    int error_column;
-
-    if(!m_Document.setContent(&xml_file, &error_msg, &error_line, &error_column))
+    if(!document)
     {
-        qDebug() << "Error: \"" + error_msg + "\" at line: " + QString::number(error_line) + " Columns: " + QString::number(error_column);
+        if(document.error().kind == ErrorKind::XmlSyntax)
+            qDebug() << "Error: \"" + QString::fromStdString(document.error().message) + "\" at " + QString::fromStdString(document.error().source);
 
-        return {};
+        return std::unexpected(document.error());
     }
 
-    // parse
-    const auto art_obj_elem = m_Document.firstChildElement("ArtObject");
+    // QDomDocument::firstChildElement: the document element, if it is named ArtObject
+    const auto art_obj_elem = document->firstChildElement("ArtObject");
 
     if(art_obj_elem.isNull())
-        return {};
+        return std::unexpected(Error{ErrorKind::MissingElement, "missing element 'ArtObject'", "ArtObject"});
 
-    auto geometry = parseGeometry(art_obj_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
+    const auto primitives_elem = childElement(art_obj_elem, "ShaderInstancedIndexedPrimitives");
+
+    if(!primitives_elem)
+        return std::unexpected(primitives_elem.error());
+
+    auto geometry = parseGeometry(*primitives_elem);
 
     if(!geometry)
-        return {};
+        return std::unexpected(geometry.error());
 
     geometry->m_Name = name;
     geometry->m_Texture.m_TextureName = name + ".png";
     geometry->m_Texture.m_TextureOrgFile = org_path + "/" + name + ".png";
 
-    return std::move(*geometry);
+    return geometry;
 }
 
 } // namespace fez

@@ -464,8 +464,7 @@ LevelParser::ArtObjectGeometriesResult LevelParser::parseArtObjects(const Level:
             if(!QFile(art_object_path).exists())
                 return {};
 
-            ArtObjectParser parser;
-            auto art_object_result = parser.parse(art_object_path);
+            auto art_object_result = parseArtObject(art_object_path);
 
             if(!art_object_result)
                 return {};
