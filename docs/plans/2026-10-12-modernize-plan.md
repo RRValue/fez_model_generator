@@ -445,7 +445,7 @@ model header self-contained (compile-check test that includes each header alone)
 **Estimated scope:** S
 
 ### Checkpoint: Layout and model
-- [ ] Default + golden tests pass; human review of the new layout.
+- [x] Default + golden tests pass; human review of the new layout.
 
 ### Task 10: `Error` type and `xml/` helpers
 
