@@ -54,8 +54,14 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 find_package(assimp CONFIG REQUIRED)
 find_package(Eigen3 CONFIG REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Xml Concurrent)
+find_package(Catch2 3 CONFIG REQUIRED)
 
 qt_standard_project_setup()
+
+# Runtime DLL directories, used to run tests without Qt or vcpkg on PATH.
+get_target_property(_fez_qmake Qt6::qmake IMPORTED_LOCATION)
+get_filename_component(FEZ_QT_BIN_DIR "${_fez_qmake}" DIRECTORY)
+set(FEZ_VCPKG_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/$<$<CONFIG:Debug>:debug/>bin")
 
 # --- Executable ---------------------------------------------------------------
 set(PROJECT_SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/source)
@@ -87,11 +93,9 @@ set_target_properties(FezModelGenerator PROPERTIES
 # app-local deployment; Qt DLLs and plugins are deployed into the output
 # directory (never into the source tree). Install-time deployment follows later.
 if(WIN32)
-    get_target_property(_fez_qmake Qt6::qmake IMPORTED_LOCATION)
-    get_filename_component(_fez_qt_bin "${_fez_qmake}" DIRECTORY)
-    find_program(FEZ_WINDEPLOYQT windeployqt HINTS "${_fez_qt_bin}" NO_DEFAULT_PATH)
+    find_program(FEZ_WINDEPLOYQT windeployqt HINTS "${FEZ_QT_BIN_DIR}" NO_DEFAULT_PATH)
     if(NOT FEZ_WINDEPLOYQT)
-        message(FATAL_ERROR "windeployqt not found next to qmake in '${_fez_qt_bin}'.")
+        message(FATAL_ERROR "windeployqt not found next to qmake in '${FEZ_QT_BIN_DIR}'.")
     endif()
 
     add_custom_command(TARGET FezModelGenerator POST_BUILD
@@ -103,5 +107,9 @@ if(WIN32)
         VERBATIM
     )
 endif()
+
+# --- Tests --------------------------------------------------------------------
+enable_testing()
+add_subdirectory(tests)
 
 qt_finalize_project()

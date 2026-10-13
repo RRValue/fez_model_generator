@@ -201,14 +201,32 @@ with `DL_PATHS` for Qt and vcpkg `bin`). The fixture root is injected as a compi
 extra and differing files, with the first differing line for `.obj`/`.mtl`.
 
 **Acceptance criteria:**
-- [ ] `ctest --preset windows-debug` discovers and runs Catch2 tests.
-- [ ] `fez_tests` runs its tests inside a live `QCoreApplication` (custom `main`, not `Catch2WithMain`).
-- [ ] Tests locate fixtures through `FEZ_TEST_DATA_DIR`; no relative paths that depend on the working directory.
-- [ ] `compareTrees` unit tests cover identical trees, missing file, extra file, binary difference and text
+- [x] `ctest --preset windows-debug` discovers and runs Catch2 tests.
+- [x] `fez_tests` runs its tests inside a live `QCoreApplication` (custom `main`, not `Catch2WithMain`).
+- [x] Tests locate fixtures through `FEZ_TEST_DATA_DIR`; no relative paths that depend on the working directory.
+- [x] `compareTrees` unit tests cover identical trees, missing file, extra file, binary difference and text
       difference with reported line number (trees built in `QTemporaryDir`).
 
 **Verification:**
-- [ ] Tests pass: `ctest --preset windows-debug`
+- [x] Tests pass: `ctest --preset windows-debug`
+
+**Implementation notes (fez_mode-777.4):**
+- `tests/` is added from the top-level `CMakeLists.txt` (`enable_testing()` + `add_subdirectory(tests)`), which also
+  does `find_package(Catch2 3 CONFIG REQUIRED)` and defines `FEZ_QT_BIN_DIR` (next to `qmake`) and
+  `FEZ_VCPKG_BIN_DIR` (`${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/$<$<CONFIG:Debug>:debug/>bin`) for Task 5 to
+  reuse. No preset change was needed (the test base presets from Task 1 suffice).
+- `catch_discover_tests(... DISCOVERY_MODE PRE_TEST DL_PATHS ...)`: `POST_BUILD` writes one test list shared by
+  Debug and Release in the multi-config build; `PRE_TEST` keeps one per configuration and resolves the genex.
+  Verified with Qt/vcpkg removed from `PATH` and the windeployqt copy of `Qt6Cored.dll` temporarily hidden from
+  `bin/Debug`: `fez_tests.exe` alone fails with `STATUS_DLL_NOT_FOUND`, `ctest --preset windows-debug` passes.
+- API (`tests/support/TreeCompare.h`, namespace `fez::testing`): `compareTrees(expectedRoot, actualRoot)` returns
+  `TreeComparison{missing, extra, differing}` with sorted `/`-separated relative paths, `identical()` and
+  `describe()` (failure text for Task 5). `FileDifference` carries, for `.obj`/`.mtl` (case-insensitive), the
+  1-based first differing line and that line from both files. A nonexistent root counts as an empty tree; an
+  unreadable file counts as differing. `tests/support/TestData.h` gives `testDataDir()`/`testDataPath()` from
+  `FEZ_TEST_DATA_DIR`; small fixture `tests/data/tree_compare/sample/` (no `.obj`: `*.obj` is gitignored, Task 7
+  needs a `!tests/data/**` exception for `mini_expected/`).
+- 14 test cases: 12 `[TreeCompare]` (one also `[fixture]`) and 2 `[support]` (live `QCoreApplication`, fixture root).
 
 **Dependencies:** Task 1
 
