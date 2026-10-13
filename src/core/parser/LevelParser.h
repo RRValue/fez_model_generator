@@ -5,11 +5,16 @@
 #include "model/Texture.h"
 
 #include <QtCore/QString>
-#include <QtCore/QMutex>
+
+#include <optional>
 
 namespace fez
 {
 
+class AssetRepository;
+
+// Builds a Level from a level XML file; trile sets, art objects and textures come from the repository (shared by
+// all levels of a run, thread-safe).
 class LevelParser
 {
     using LevelResult = std::optional<Level>;
@@ -20,15 +25,9 @@ class LevelParser
 
     using BackgroundPlanesResult = std::optional<Level::BackgroundPlanes>;
     using CharactersResult = std::optional<Level::Characters>;
-    using TextureResult = std::optional<Texture>;
-
-    using TrileSetCache = std::map<QString, Level::TrileGeometries>;
-    using ArtObjectCache = std::map<QString, Geometry>;
-    using TextureCache = std::map<QString, Texture>;
 
 public:
-    LevelParser();
-    ~LevelParser();
+    explicit LevelParser(AssetRepository& repository);
 
     LevelResult parse(const QString& path) noexcept;
 
@@ -42,16 +41,7 @@ private:
     CharactersResult parseCharacters(const Level::Characters& characters);
 
 private:
-    QString m_Path;
-
-    static QMutex sm_TrileSetCacheMutex;
-    static TrileSetCache sm_TrileSetCache;
-
-    static QMutex sm_ArtObjectCacheMutex;
-    static ArtObjectCache sm_ArtObjectCache;
-
-    static QMutex sm_TextureCacheMutex;
-    static TextureCache sm_TextureCache;
+    AssetRepository& m_Repository;
 };
 
 } // namespace fez

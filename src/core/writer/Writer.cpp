@@ -22,9 +22,11 @@ Writer::Writer(const QString& path) : m_Path{path}, m_Scene{new aiScene()}
     m_Scene->mRootNode->mTransformation = aiMatrix4x4({1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1});
 
     // make path
+    // Writers run in parallel and share missing parent directories (e.g. <output>/lv_export): QDir::mkpath fails for
+    // a thread that creates such a parent at the same moment as another one, so it is retried (the parent then exists).
     QDir dir(m_Path);
 
-    if(!dir.exists())
+    for(int attempt = 0; attempt < 3 && !dir.exists(); ++attempt)
         dir.mkpath(".");
 }
 

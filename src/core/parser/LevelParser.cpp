@@ -2,19 +2,8 @@
 
 #include "geometry/TexturedQuad.h"
 
-#include "parser/ArtObjectParser.h"
-#include "parser/TextureParser.h"
-#include "parser/TrileSetParser.h"
 #include "parser/level/LevelReader.h"
-
-#include <QtCore/QDir>
-#include <QtCore/QFile>
-#include <QtCore/QFileInfo>
-#include <QtCore/QMutexLocker>
-
-#include <QtGui/QImage>
-
-#include <qdebug.h>
+#include "repository/AssetRepository.h"
 
 namespace fez
 {
@@ -31,20 +20,8 @@ namespace
     }
 } // namespace
 
-QMutex LevelParser::sm_TrileSetCacheMutex = {};
-LevelParser::TrileSetCache LevelParser::sm_TrileSetCache = {};
-
-QMutex LevelParser::sm_ArtObjectCacheMutex = {};
-LevelParser::ArtObjectCache LevelParser::sm_ArtObjectCache = {};
-
-QMutex LevelParser::sm_TextureCacheMutex = {};
-LevelParser::TextureCache LevelParser::sm_TextureCache = {};
-
-LevelParser::LevelParser()
-{
-}
-
-LevelParser::~LevelParser()
+LevelParser::LevelParser(AssetRepository& repository)
+    : m_Repository(repository)
 {
 }
 
@@ -55,8 +32,6 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 
     if(!description)
         return {};
-
-    m_Path = QFileInfo(path).absolutePath();
 
     Level result;
 
@@ -120,39 +95,13 @@ LevelParser::LevelResult LevelParser::parse(const QString& path) noexcept
 
 LevelParser::TrileGeometriesResult LevelParser::parseTrileEmplacements(const Level::TrileEmplacements& emplacements, const QString& trileSetName)
 {
-    // find trile set in cache
-    const auto trile_set = [this, &trileSetName]() -> Level::TrileGeometries {
-        QMutexLocker locker(&sm_TrileSetCacheMutex);
+    // <input>/trile sets/<name>.xml; a failed set and a set without triles both fail the level
+    const auto loaded_trile_set = m_Repository.trileSet(trileSetName);
 
-        const auto trile_set_find_iter = sm_TrileSetCache.find(trileSetName);
-
-        if(trile_set_find_iter != sm_TrileSetCache.cend())
-            return trile_set_find_iter->second;
-
-        // load triles
-        const auto trile_sets_dir = QDir(m_Path + "/../trile sets");
-
-        if(!trile_sets_dir.exists())
-            return {};
-
-        const auto trile_set_path = trile_sets_dir.absolutePath() + "/" + trileSetName + ".xml";
-
-        if(!QFile(trile_set_path).exists())
-            return {};
-
-        auto triles_set = parseTrileSet(trile_set_path);
-
-        // a failed set and a set without triles both fail the level (not cached, as before)
-        if(!triles_set || triles_set->m_Triles.empty())
-            return {};
-
-        sm_TrileSetCache.insert({trileSetName, triles_set->m_Triles});
-
-        return std::move(triles_set->m_Triles);
-    }();
-
-    if(trile_set.empty())
+    if(!loaded_trile_set || (*loaded_trile_set)->m_Triles.empty())
         return {};
+
+    const auto& trile_set = (*loaded_trile_set)->m_Triles;
 
     Level::TrileGeometries result;
 
@@ -185,40 +134,13 @@ LevelParser::ArtObjectGeometriesResult LevelParser::parseArtObjects(const Level:
         if(result.find(artObject.m_Name) != result.cend())
             continue;
 
-        // find art object set in cache
-        auto art_object = [this](const QString& artObjectName) -> std::optional<Geometry> {
-            QMutexLocker locker(&sm_ArtObjectCacheMutex);
-
-            const auto art_object_find_iter = sm_ArtObjectCache.find(artObjectName);
-
-            if(art_object_find_iter != sm_ArtObjectCache.cend())
-                return art_object_find_iter->second;
-
-            // load art object
-            const auto art_objects_dir = QDir(m_Path + "/../art objects");
-
-            if(!art_objects_dir.exists())
-                return {};
-
-            const auto art_object_path = art_objects_dir.absolutePath() + "/" + artObjectName + ".xml";
-
-            if(!QFile(art_object_path).exists())
-                return {};
-
-            auto art_object_result = parseArtObject(art_object_path);
-
-            if(!art_object_result)
-                return {};
-
-            sm_ArtObjectCache.insert({artObjectName, *art_object_result});
-
-            return *art_object_result;
-        }(artObject.m_Name);
+        // <input>/art objects/<name>.xml
+        const auto art_object = m_Repository.artObject(artObject.m_Name);
 
         if(!art_object)
             return {};
 
-        result.insert({artObject.m_Name, std::move(*art_object)});
+        result.insert({artObject.m_Name, **art_object});
     }
 
     return result;
@@ -235,32 +157,13 @@ LevelParser::BackgroundPlanesResult LevelParser::loadBackgroundPlaneTextures(con
 
         background_plane.m_Name = description.m_TextureName;
 
-        // load texture
-        const auto texture_path = QDir(m_Path + "/../background planes").absolutePath();
-
-        const auto texture = [this, &texture_path, &background_plane, &description]() -> TextureResult {
-            QMutexLocker locker(&sm_TextureCacheMutex);
-
-            const auto cache_key = texture_path + "/" + background_plane.m_Name;
-            const auto cache_texture = sm_TextureCache.find(cache_key);
-
-            if(cache_texture != sm_TextureCache.cend())
-                return cache_texture->second;
-
-            const auto loaded_texture = loadTexture(texture_path, background_plane.m_Name, description.m_Animated);
-
-            if(!loaded_texture)
-                return {};
-
-            sm_TextureCache.insert({cache_key, *loaded_texture});
-
-            return *loaded_texture;
-        }();
+        // <input>/background planes/<name>; the repository key ignores animated (as the old cache key did)
+        const auto texture = m_Repository.texture("background planes", background_plane.m_Name, description.m_Animated);
 
         if(!texture)
             return {};
 
-        background_plane.m_Geometry.m_Texture = std::move(*texture);
+        background_plane.m_Geometry.m_Texture = **texture;
 
         background_plane.m_Geometry.m_Opacity = description.m_Opacity;
         background_plane.m_Geometry.m_DoubleSided = description.m_DoubleSided;
@@ -318,33 +221,15 @@ LevelParser::CharactersResult LevelParser::loadCharacterTextures(const LevelDesc
         if(npc.m_Actions.empty())
             return {};
 
-        // load texture
-        const auto texture_path = QDir(m_Path + "/../character animations").absolutePath();
-        const auto action_name = npc.m_Actions[0].second;
+        // <input>/character animations/<npc>/<action>
+        const auto& action_name = npc.m_Actions[0].second;
 
-        const auto texture = [this, &texture_path, &character, &action_name]() -> TextureResult {
-            QMutexLocker locker(&sm_TextureCacheMutex);
-
-            const auto cache_key = texture_path + "/" + character.m_Name + "/" + action_name;
-            const auto cache_texture = sm_TextureCache.find(cache_key);
-
-            if(cache_texture != sm_TextureCache.cend())
-                return cache_texture->second;
-
-            const auto loaded_texture = loadTexture(texture_path, character.m_Name + "/" + action_name, true);
-
-            if(!loaded_texture)
-                return {};
-
-            sm_TextureCache.insert(std::make_pair(cache_key, *loaded_texture));
-
-            return *loaded_texture;
-        }();
+        const auto texture = m_Repository.texture("character animations", character.m_Name + "/" + action_name, true);
 
         if(!texture)
             return {};
 
-        character.m_Geometry.m_Texture = std::move(*texture);
+        character.m_Geometry.m_Texture = **texture;
 
         character.m_Position = npc.m_Position;
 

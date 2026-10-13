@@ -875,13 +875,61 @@ and `NonplayerCharacters` (name, actions, position) sections to `parseLevel`; te
 `LevelParser`; `Application` owns one repository for all phases.
 
 **Acceptance criteria:**
-- [ ] Test: 16 threads request the same key → injected loader called once, all get the same pointer.
-- [ ] Test: two different keys load concurrently (loader for key A blocks until key B's loader ran).
-- [ ] Test: a failed load returns the same `Error` to all waiters.
-- [ ] No `static` caches or `QMutex` remain in `LevelParser`.
+- [x] Test: 16 threads request the same key → injected loader called once, all get the same pointer.
+- [x] Test: two different keys load concurrently (loader for key A blocks until key B's loader ran).
+- [x] Test: a failed load returns the same `Error` to all waiters.
+- [x] No `static` caches or `QMutex` remain in `LevelParser`.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[repository]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[repository]"`; golden passes.
+
+**Implementation notes (fez_mode-777.20):**
+- `repository/AssetRepository.{h,cpp}`: `AssetRepository(inputRoot, Loaders = defaultLoaders())`, non-copyable;
+  `Result<T> = std::expected<std::shared_ptr<const T>, Error>`; `Loaders` holds three `std::function`s
+  (`trileSet(path)`, `artObject(path)`, `texture(dir, name, animated)`). The root is made absolute and clean
+  (`QDir::absolutePath`, exposed as `inputRoot()`). `trileSet(name)` loads `<root>/trile sets/<name>.xml`,
+  `artObject(name)` `<root>/art objects/<name>.xml` (keys: the name), `texture(dir, name, animated)` loads from
+  `QDir(<root>/<dir>).absolutePath()` (dir relative to the root) with key `"<absolute dir>/<name>"`, i.e. **`animated`
+  is not part of the key** (as the old background-plane/NPC texture cache; the first request decides). The default
+  loaders are `parseTrileSet`/`parseArtObject` behind a `QFileInfo::exists` check (`FileNotFound` without parsing, so a
+  missing file logs nothing, as the old `LevelParser` checks) and `loadTexture`.
+- **Locking:** one private `Cache<T>` per kind: `std::mutex` + `std::map<QString, std::shared_future<Result<T>>>`. The
+  mutex only guards lookup/insert/erase; the first requester inserts a future, loads on its own thread outside the
+  lock and fulfils the promise, later requesters wait on the shared future outside the lock, other keys never block.
+  (The old `LevelParser` held a global `QMutex` per kind during the whole parse.)
+- **Failures are not cached (kept):** a failed load erases its entry before the promise is fulfilled, so all waiters of
+  that load get the same `Error` and a later request loads again. A loader exception is passed to all waiters
+  (`set_exception`), rethrown to the loading caller, and not cached. A trile set **without triles is a successful
+  repository result** (it is cached; `Application`'s trile-set phase accepts it); `LevelParser` still treats it as a
+  failure of the level. Before, such a set was re-parsed for every level that used it; the result is the same.
+- `LevelParser(AssetRepository&)`: static caches, `QMutex` members, `m_Path` and the default constructor/destructor are
+  gone; trile sets, art objects and plane/NPC textures come from the repository (NPC: `texture("character animations",
+  "<npc>/<first action>", true)`). Results are copied out of the shared pointers into the `Level` as before.
+- `Application` owns one `AssetRepository(input_path)` for all phases: the art-object and trile-set phases call
+  `repository.artObject/trileSet(QFileInfo(file).completeBaseName())` (the same file, so the same result) instead of
+  the parsers, so the level phase reuses those results instead of parsing again. Successful assets now stay in memory
+  for the whole run (before: only those the levels referenced).
+- `tests/unit/AssetRepositoryTests.cpp` (`[repository]`): 9 test cases / 205 assertions: same key from 16 threads (one
+  load, one pointer, later calls cached), two keys concurrently (A's loader waits up to 10 s for B's loader, so a lock
+  held during loading fails instead of hanging), failure with 16 waiters (one load, same `Error`), failure not cached,
+  loader exception, paths below the absolute root, texture key ignores `animated`/equivalent dir spellings, kinds cached
+  separately, default loaders on `tests/data/mini_export` incl. `FileNotFound`. Thread results are checked on the main
+  thread (Catch2 assertions are not thread-safe). The waiter tests release the load 250 ms after all 16 threads
+  started, so the others are inside the repository. Written first and seen failing to compile.
+- **Deviation – `Writer` directory race fixed (`writer/Writer.cpp`, `tests/unit/WriterTests.cpp`):** the first golden
+  run lost one level (`CABIN_INTERIOR_B`, in a reduced repro sometimes `CABIN_INTERIOR_A`): both levels parsed fine,
+  but `Writer`'s constructor called `QDir::mkpath` for `<output>/lv_export/<level>` at the same moment as another
+  writer while `lv_export` did not exist yet, and `mkpath` failed for one of them (so the export failed silently).
+  The race existed before; the old global mutexes held during asset loading staggered the level writers, while with
+  load-once the two small cabin levels finish together. The constructor now retries `mkpath` (up to 3 attempts while
+  the directory does not exist), which yields the deterministic output of `golden/v1`. `[writer]` test: 20 rounds of 16
+  threads constructing writers for sibling directories below a missing parent; failed 3/3 before the fix.
+  (`Writer` is replaced in Task 23; `TextureCopier`/`exportObj` must create directories race-free as well.)
+- Checks: Debug and Release build (no new warnings; the three C4267 in `Writer.cpp` (index conversions, now lines 133–135) predate this task
+  and only show when that file is recompiled); `fez_tests.exe "[repository]"` passed (8 repeated runs),
+  `"[writer]"` passed (5 repeated runs); `ctest --preset windows-debug` and `windows-release` 130/130;
+  `ctest --preset windows-release-golden` passed against `golden/v1` (529 s; the run before the `Writer` fix failed as
+  described above).
 
 **Dependencies:** Task 19
 

@@ -1,8 +1,7 @@
 #include "Application.h"
 
-#include "parser/ArtObjectParser.h"
 #include "parser/LevelParser.h"
-#include "parser/TrileSetParser.h"
+#include "repository/AssetRepository.h"
 
 #include "writer/GeometryWriter.h"
 #include "writer/LevelWriter.h"
@@ -52,14 +51,16 @@ void Application::onRun()
         return;
     }
 
-    processArtObjects(input_path, output_path);
-    processTrileSets(input_path, output_path);
-    processLevels(input_path, output_path);
+    auto repository = fez::AssetRepository(input_path);
+
+    processArtObjects(repository, input_path, output_path);
+    processTrileSets(repository, input_path, output_path);
+    processLevels(repository, input_path, output_path);
 
     exit();
 }
 
-void Application::processArtObjects(const QString& input_path, const QString& output_path)
+void Application::processArtObjects(fez::AssetRepository& repository, const QString& input_path, const QString& output_path)
 {
     auto ao_xml_iter = QDirIterator(input_path + "/art objects", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
@@ -68,11 +69,14 @@ void Application::processArtObjects(const QString& input_path, const QString& ou
     while(ao_xml_iter.hasNext())
         art_objects_files.push_back(ao_xml_iter.next());
 
-    const auto export_function = [](const auto& file, const auto& path) -> void{
-        const auto result = fez::parseArtObject(file);
+    // <input>/art objects/<complete base name>.xml is the file itself
+    const auto export_function = [&repository](const auto& file, const auto& path) -> void{
+        const auto loaded = repository.artObject(QFileInfo(file).completeBaseName());
 
-        if(!result)
+        if(!loaded)
             return;
+
+        const auto& result = *loaded;
 
         qDebug() << "Write: " << result->m_Name;
 
@@ -87,7 +91,7 @@ void Application::processArtObjects(const QString& input_path, const QString& ou
     waiter.waitForFinished();
 }
 
-void Application::processTrileSets(const QString& input_path, const QString& output_path)
+void Application::processTrileSets(fez::AssetRepository& repository, const QString& input_path, const QString& output_path)
 {
     auto ts_xml_iter = QDirIterator(input_path + "/trile sets", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
@@ -96,11 +100,14 @@ void Application::processTrileSets(const QString& input_path, const QString& out
     while(ts_xml_iter.hasNext())
         trile_set_files.push_back(ts_xml_iter.next());
 
-    const auto export_function = [](const auto& file, const auto& path) -> void {
-        const auto trile_set = fez::parseTrileSet(file);
+    // <input>/trile sets/<complete base name>.xml is the file itself
+    const auto export_function = [&repository](const auto& file, const auto& path) -> void {
+        const auto loaded = repository.trileSet(QFileInfo(file).completeBaseName());
 
-        if(!trile_set)
+        if(!loaded)
             return;
+
+        const auto& trile_set = *loaded;
 
         for(const auto& r : trile_set->m_Triles)
         {
@@ -118,7 +125,7 @@ void Application::processTrileSets(const QString& input_path, const QString& out
     waiter.waitForFinished();
 }
 
-void Application::processLevels(const QString& input_path, const QString& output_path)
+void Application::processLevels(fez::AssetRepository& repository, const QString& input_path, const QString& output_path)
 {
     auto lvl_xml_iter = QDirIterator(input_path + "/levels", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
@@ -127,8 +134,8 @@ void Application::processLevels(const QString& input_path, const QString& output
     while(lvl_xml_iter.hasNext())
         level_files.push_back(lvl_xml_iter.next());
 
-    const auto export_function = [](const auto& file, const auto& path) -> void {
-        fez::LevelParser parser;
+    const auto export_function = [&repository](const auto& file, const auto& path) -> void {
+        fez::LevelParser parser(repository);
         const auto level = parser.parse(file);
 
         if(!level)

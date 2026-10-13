@@ -38,6 +38,8 @@ set(FEZ_CORE_SOURCES
     parser/TextureParser.h
     parser/TrileSetParser.cpp
     parser/TrileSetParser.h
+    repository/AssetRepository.cpp
+    repository/AssetRepository.h
     writer/GeometryWriter.cpp
     writer/GeometryWriter.h
     writer/LevelWriter.cpp

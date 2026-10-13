@@ -2,6 +2,11 @@
 
 #include <QtCore/QCoreApplication>
 
+namespace fez
+{
+class AssetRepository;
+}
+
 class Application : public QCoreApplication
 {
     Q_OBJECT;
@@ -13,7 +18,8 @@ public slots:
     void onRun();
 
 private:
-    void processArtObjects(const QString& input_path, const QString& output_path);
-    void processTrileSets(const QString& input_path, const QString& output_path);
-    void processLevels(const QString& input_path, const QString& output_path);
+    // All three phases share one repository (trile sets, art objects, textures are loaded once per run).
+    void processArtObjects(fez::AssetRepository& repository, const QString& input_path, const QString& output_path);
+    void processTrileSets(fez::AssetRepository& repository, const QString& input_path, const QString& output_path);
+    void processLevels(fez::AssetRepository& repository, const QString& input_path, const QString& output_path);
 };
