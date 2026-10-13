@@ -1,161 +1,163 @@
 #include "parser/TextureParser.h"
 
-#include <QtCore/QDir>
+#include "xml/Xml.h"
+
 #include <QtCore/QFile>
-#include <QtCore/QFileInfo>
 
 #include <QtGui/QImage>
+
+#include <qdebug.h>
+
+#include <utility>
 
 namespace fez
 {
 
-TextureParser::TextureParser() : m_Document{}
+namespace
 {
+
+// One FramePC: duration and the Rectangle divided by the sheet size.
+std::expected<AnimationFrame, Error> parseFrame(const QDomElement& frame_elem, unsigned int sheetWidth, unsigned int sheetHeight)
+{
+    const auto duration = attribute<unsigned int>(frame_elem, "duration");
+
+    if(!duration)
+        return std::unexpected(duration.error());
+
+    const auto rectangle_elem = childElement(frame_elem, "Rectangle");
+
+    if(!rectangle_elem)
+        return std::unexpected(rectangle_elem.error());
+
+    const auto x = attribute<float>(*rectangle_elem, "x");
+
+    if(!x)
+        return std::unexpected(x.error());
+
+    const auto y = attribute<float>(*rectangle_elem, "y");
+
+    if(!y)
+        return std::unexpected(y.error());
+
+    const auto w = attribute<float>(*rectangle_elem, "w");
+
+    if(!w)
+        return std::unexpected(w.error());
+
+    const auto h = attribute<float>(*rectangle_elem, "h");
+
+    if(!h)
+        return std::unexpected(h.error());
+
+    const auto pos = Vec2f{*x / float(sheetWidth), *y / float(sheetHeight)};
+    const auto size = Vec2f{*w / float(sheetWidth), *h / float(sheetHeight)};
+
+    return AnimationFrame{*duration, pos, size};
 }
 
-TextureParser::~TextureParser()
+} // namespace
+
+std::expected<AnimatedTexture, Error> parseAnimatedTexture(const QString& path)
 {
+    const auto document = loadXml(path);
+
+    if(!document)
+    {
+        if(document.error().kind == ErrorKind::XmlSyntax)
+            qDebug() << "Error: \"" + QString::fromStdString(document.error().message) + "\" at " + QString::fromStdString(document.error().source);
+
+        return std::unexpected(document.error());
+    }
+
+    // QDomDocument::firstChildElement: the document element, if it is named AnimatedTexturePC
+    const auto animated_texture_pc_elem = document->firstChildElement("AnimatedTexturePC");
+
+    if(animated_texture_pc_elem.isNull())
+        return std::unexpected(Error{ErrorKind::MissingElement, "missing element 'AnimatedTexturePC'", "AnimatedTexturePC"});
+
+    const auto actual_width = attribute<unsigned int>(animated_texture_pc_elem, "actualWidth");
+
+    if(!actual_width)
+        return std::unexpected(actual_width.error());
+
+    const auto actual_height = attribute<unsigned int>(animated_texture_pc_elem, "actualHeight");
+
+    if(!actual_height)
+        return std::unexpected(actual_height.error());
+
+    const auto texture_width = attribute<unsigned int>(animated_texture_pc_elem, "width");
+
+    if(!texture_width)
+        return std::unexpected(texture_width.error());
+
+    const auto texture_height = attribute<unsigned int>(animated_texture_pc_elem, "height");
+
+    if(!texture_height)
+        return std::unexpected(texture_height.error());
+
+    const auto frames_elem = childElement(animated_texture_pc_elem, "Frames");
+
+    if(!frames_elem)
+        return std::unexpected(frames_elem.error());
+
+    // From the first FramePC on, every following sibling element is a frame (no name filter, as before).
+    const auto first_frame = childElement(*frames_elem, "FramePC");
+
+    if(!first_frame)
+        return std::unexpected(first_frame.error());
+
+    AnimatedTexture result;
+    result.m_Width = *actual_width;
+    result.m_Height = *actual_height;
+
+    for(auto iter = ChildElementRange::Iterator(*first_frame, QString()); iter != ChildElementRange::Iterator(); ++iter)
+    {
+        auto frame = parseFrame(*iter, *texture_width, *texture_height);
+
+        if(!frame)
+            return std::unexpected(frame.error());
+
+        result.m_Frames.push_back(std::move(*frame));
+    }
+
+    return result;
 }
 
-TextureParser::TextureResult TextureParser::parse(const QString& path, const QString& name, const bool& isAnimated) noexcept
+std::expected<Texture, Error> loadTexture(const QString& dir, const QString& name, bool animated)
 {
-    qDebug() << "parsing: " << path << "/" << name;
+    qDebug() << "parsing: " << dir << "/" << name;
 
     Texture result;
 
-    result.m_TextureOrgFile = path + "/" + name + (isAnimated ? ".ani.png" : ".png");
+    result.m_TextureOrgFile = dir + "/" + name + (animated ? ".ani.png" : ".png");
 
     if(!QFile(result.m_TextureOrgFile).exists())
-        return {};
+        return std::unexpected(Error{ErrorKind::FileNotFound, "file not found", result.m_TextureOrgFile.toStdString()});
 
-    result.m_IsAnimated = isAnimated;
-    result.m_TextureName = name + (isAnimated ? ".ani.png" : ".png");
+    result.m_IsAnimated = animated;
+    result.m_TextureName = name + (animated ? ".ani.png" : ".png");
 
-    if(!isAnimated)
+    if(!animated)
     {
-        const auto background_plane_image = QImage(result.m_TextureOrgFile);
+        const auto image = QImage(result.m_TextureOrgFile);
 
-        if(background_plane_image.isNull())
-            return {};
+        if(image.isNull())
+            return std::unexpected(Error{ErrorKind::Io, "cannot read image", result.m_TextureOrgFile.toStdString()});
 
-        result.m_Width = background_plane_image.width();
-        result.m_Height = background_plane_image.height();
+        result.m_Width = image.width();
+        result.m_Height = image.height();
 
         return result;
     }
 
-    const auto xml_file_path = path + "/" + name + ".xml";
+    auto animated_texture = parseAnimatedTexture(dir + "/" + name + ".xml");
 
-    QFileInfo info(xml_file_path);
+    if(!animated_texture)
+        return std::unexpected(animated_texture.error());
 
-    if(!info.exists())
-        return {};
-
-    m_Document.clear();
-
-    // load
-    auto xml_file = QFile(xml_file_path);
-
-    if(!xml_file.exists())
-        return {};
-
-    if(!xml_file.open(QIODevice::OpenModeFlag::ReadOnly))
-        return {};
-
-    QString error_msg;
-    int error_line;
-    int error_column;
-
-    if(!m_Document.setContent(&xml_file, &error_msg, &error_line, &error_column))
-    {
-        qDebug() << "Error: \"" + error_msg + "\" at line: " + QString::number(error_line) + " Columns: " + QString::number(error_column);
-
-        return {};
-    }
-
-    // parse
-    const auto animated_texture_pc_elem = m_Document.firstChildElement("AnimatedTexturePC");
-
-    if(animated_texture_pc_elem.isNull())
-        return {};
-
-    if(!animated_texture_pc_elem.hasAttribute("actualWidth") || !animated_texture_pc_elem.hasAttribute("actualHeight") ||
-       !animated_texture_pc_elem.hasAttribute("width") || !animated_texture_pc_elem.hasAttribute("height"))
-        return {};
-
-    auto actual_width_ok = false;
-    auto actual_height_ok = false;
-    auto width_ok = false;
-    auto height_ok = false;
-
-    result.m_Width = animated_texture_pc_elem.attribute("actualWidth").toUInt(&actual_width_ok);
-    result.m_Height = animated_texture_pc_elem.attribute("actualHeight").toUInt(&actual_height_ok);
-
-    const auto texture_width = animated_texture_pc_elem.attribute("width").toUInt(&width_ok);
-    const auto texture_height = animated_texture_pc_elem.attribute("height").toUInt(&height_ok);
-
-    if(!actual_width_ok || !actual_height_ok || !width_ok || !height_ok)
-        return {};
-
-    // parse frames
-    const auto frames_elem = animated_texture_pc_elem.firstChildElement("Frames");
-
-    if(frames_elem.isNull())
-        return {};
-
-    // read frames
-    auto frame_pc_elem = frames_elem.firstChildElement("FramePC");
-    auto frame_pc_count = size_t(0);
-
-    while(!frame_pc_elem.isNull())
-    {
-        frame_pc_count++;
-        frame_pc_elem = frame_pc_elem.nextSiblingElement();
-    }
-
-    if(frame_pc_count == 0)
-        return {};
-
-    frame_pc_elem = frames_elem.firstChildElement("FramePC");
-    result.m_TextureAnimationOffsets = Texture::TextureAnimationOffsets(frame_pc_count);
-    frame_pc_count = 0;
-
-    while(!frame_pc_elem.isNull())
-    {
-        if(!frame_pc_elem.hasAttribute("duration"))
-            return {};
-
-        auto duration_ok = false;
-        const auto duration = frame_pc_elem.attribute("duration").toUInt(&duration_ok);
-
-        if(!duration_ok)
-            return {};
-
-        const auto rectangle_elem = frame_pc_elem.firstChildElement("Rectangle");
-
-        if(rectangle_elem.isNull())
-            return {};
-
-        if(!rectangle_elem.hasAttribute("x") || !rectangle_elem.hasAttribute("y") || !rectangle_elem.hasAttribute("w") || !rectangle_elem.hasAttribute("h"))
-            return {};
-
-        auto x_ok = false;
-        auto y_ok = false;
-        auto w_ok = false;
-        auto h_ok = false;
-
-        const auto pos = Vec2f{rectangle_elem.attribute("x").toFloat(&x_ok) / float(texture_width),  //
-                                  rectangle_elem.attribute("y").toFloat(&y_ok) / float(texture_height)};
-        const auto size = Vec2f{rectangle_elem.attribute("w").toFloat(&w_ok) / float(texture_width),  //
-                                  rectangle_elem.attribute("h").toFloat(&h_ok) / float(texture_height)};
-
-        if(!x_ok || !y_ok || !w_ok || !h_ok)
-            return {};
-
-        result.m_TextureAnimationOffsets[frame_pc_count++] = AnimationFrame{duration, pos, size};
-
-        frame_pc_elem = frame_pc_elem.nextSiblingElement();
-    }
+    result.m_Width = animated_texture->m_Width;
+    result.m_Height = animated_texture->m_Height;
+    result.m_TextureAnimationOffsets = std::move(animated_texture->m_Frames);
 
     return result;
 }

@@ -548,14 +548,14 @@ LevelParser::BackgroundPlanesResult LevelParser::readBackgroundPlanes(const QDom
             if(cache_texture != sm_TextureCache.cend())
                 return cache_texture->second;
 
-            const auto loaded_texture = TextureParser().parse(texture_path, background_plane.m_Name, animated);
+            const auto loaded_texture = loadTexture(texture_path, background_plane.m_Name, animated);
 
             if(!loaded_texture)
                 return {};
 
             sm_TextureCache.insert({cache_key, *loaded_texture});
 
-            return loaded_texture;
+            return *loaded_texture;
         }();
 
         if(!texture)
@@ -790,14 +790,14 @@ LevelParser::CharactersResult LevelParser::readCharacters(const QDomElement& ele
             if(cache_texture != sm_TextureCache.cend())
                 return cache_texture->second;
 
-            const auto loaded_texture = TextureParser().parse(texture_path, character.m_Name + "/" + action_name, true);
+            const auto loaded_texture = loadTexture(texture_path, character.m_Name + "/" + action_name, true);
 
             if(!loaded_texture)
                 return {};
 
             sm_TextureCache.insert(std::make_pair(cache_key, *loaded_texture));
 
-            return loaded_texture;
+            return *loaded_texture;
         }();
 
         if(!texture)

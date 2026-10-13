@@ -719,11 +719,35 @@ creation in the input directory is removed.
 the PNG; animated textures parse `AnimatedTexturePC` frames into normalized `AnimationFrame`s.
 
 **Acceptance criteria:**
-- [ ] Fixture tests: static PNG size; animated XML with two frames (normalized offsets/sizes, durations); zero frames
+- [x] Fixture tests: static PNG size; animated XML with two frames (normalized offsets/sizes, durations); zero frames
       → error; missing PNG → `FileNotFound`.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[parser]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[parser]"`; golden passes.
+
+**Implementation notes (fez_mode-777.17):**
+- `parser/TextureParser.{h,cpp}`: the `TextureParser` class (and its `QDomDocument` member) is replaced by
+  `struct AnimatedTexture { unsigned m_Width, m_Height; Texture::TextureAnimationOffsets m_Frames; }`,
+  `parseAnimatedTexture(xmlPath) -> std::expected<AnimatedTexture, Error>` and
+  `loadTexture(dir, name, animated) -> std::expected<Texture, Error>`. `loadTexture` checks `<dir>/<name>.png` /
+  `.ani.png` for existence (`FileNotFound`, source the path); a static PNG is decoded with `QImage` for its size (`Io`
+  when not an image); an animated one is not decoded, its size (`actualWidth`/`actualHeight`) and frames come from
+  `parseAnimatedTexture("<dir>/<name>.xml")`: `loadXml`, `AnimatedTexturePC` document element (`MissingElement`), the
+  four unsigned size attributes (`attribute<unsigned int>`, i.e. `toUInt`), `Frames`, the first `FramePC` (none →
+  `MissingElement`, source `AnimatedTexturePC/Frames/FramePC`), and per frame `duration` (`toUInt`), `Rectangle` and
+  `x`/`y`/`w`/`h` (`toFloat`) divided by `float(width)` / `float(height)` as before. The `parsing:` and XML syntax
+  `qDebug` lines are kept.
+- **Kept odd behavior:** after the first `FramePC` every following sibling element is read as a frame whatever its
+  name; elements before it are skipped; a zero `width`/`height` is not rejected (inf/nan); any invalid frame fails the
+  texture. Tests pin it.
+- Callers: the two texture lambdas in `LevelParser` call `loadTexture` and keep their cache keys (the background-plane
+  key still ignores `animated`); a failed texture still fails the level.
+- `tests/unit/TextureParserTests.cpp` (`[parser]`): 18 test cases (fixtures `tests/data/parser/texture_static.png`
+  (3x2), `texture_animated.{ani.png,xml}`, `texture_zero_frames.{ani.png,xml}`; the rest via `QTemporaryDir`), written
+  first and seen failing to compile.
+- Checks: Debug and Release build (no new warnings; one `setContent` C4996 in `LevelParser` predates this task);
+  `fez_tests.exe "[parser]"` 41 test cases / 416 assertions; `ctest --preset windows-debug` and `windows-release`
+  100/100; `ctest --preset windows-release-golden` passed against `golden/v1` (545 s).
 
 **Dependencies:** Task 10
 
@@ -733,7 +757,9 @@ the PNG; animated textures parse `AnimatedTexturePC` frames into normalized `Ani
 **Estimated scope:** S
 
 ### Checkpoint: Parsers
-- [ ] Default + golden tests pass; `[parser]` tests cover every format.
+- [x] Default + golden tests pass; `[parser]` tests cover every format. (Asset formats: geometry, art object, trile
+      set, static PNG, `AnimatedTexturePC`. The level XML is read by `LevelParser` until Tasks 18–19 and is covered only
+      by the mini end-to-end and golden tests so far.)
 - [ ] Human review.
 
 ### Task 18: Level reading – header, triles, art objects
