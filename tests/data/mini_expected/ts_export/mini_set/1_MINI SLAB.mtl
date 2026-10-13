@@ -1,0 +1,8 @@
+# File produced by Open Asset Import Library (http://www.assimp.sf.net)
+# (assimp v6.0.0)
+
+newmtl mini_set.png
+d 1
+illum 1
+map_Kd mini_set.png
+

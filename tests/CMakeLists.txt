@@ -9,12 +9,13 @@ add_executable(fez_tests
     support/TreeCompare.cpp
     unit/SupportTests.cpp
     unit/TreeCompareTests.cpp
+    e2e/MiniExportTests.cpp
     golden/GoldenTests.cpp
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX tests
     FILES support/main.cpp support/TestData.h support/TreeCompare.h support/TreeCompare.cpp
-          unit/SupportTests.cpp unit/TreeCompareTests.cpp golden/GoldenTests.cpp)
+          unit/SupportTests.cpp unit/TreeCompareTests.cpp e2e/MiniExportTests.cpp golden/GoldenTests.cpp)
 
 target_include_directories(fez_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -27,7 +28,7 @@ target_link_libraries(fez_tests PRIVATE
 # Fixture root: tests never depend on the working directory.
 target_compile_definitions(fez_tests PRIVATE FEZ_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 
-# The golden test runs the converter of the same configuration; building fez_tests builds it too.
+# The mini end-to-end test and the golden test run the converter of the same configuration; building fez_tests builds it too.
 target_compile_definitions(fez_tests PRIVATE FEZ_MODEL_GENERATOR_EXE="$<TARGET_FILE:fez_model_generator>")
 add_dependencies(fez_tests fez_model_generator)
 

@@ -1,0 +1,3 @@
+# Test fixtures are compared byte for byte (tests/data/mini_expected holds CRLF converter output):
+# never convert line endings.
+tests/data/** -text

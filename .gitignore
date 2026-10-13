@@ -68,3 +68,6 @@
 # Local CMake presets (copy CMakeUserPresets.example.json) and build trees
 CMakeUserPresets.json
 build/
+
+# Committed test fixtures (tests/data/mini_expected contains converter OBJ output)
+!/tests/data/**/*.obj
