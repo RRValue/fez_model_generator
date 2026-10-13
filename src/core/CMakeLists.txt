@@ -4,6 +4,8 @@
 set(FEZ_CORE_SOURCES
     error/Error.h
     format/QStringFormatter.h
+    geometry/FaceDecoding.cpp
+    geometry/FaceDecoding.h
     math/Quaternion.h
     math/Vector.h
     model/ArtObject.h

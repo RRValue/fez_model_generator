@@ -500,11 +500,22 @@ errors. Test-driven; not yet used by parsers.
 replacing the two `switch` blocks in `GeometryParser.cpp` (values unchanged).
 
 **Acceptance criteria:**
-- [ ] Tests cover sides 0–5 and invalid −1/6.
-- [ ] `GeometryParser.cpp` uses the functions; no `switch(side_index)` remains.
+- [x] Tests cover sides 0–5 and invalid −1/6.
+- [x] `GeometryParser.cpp` uses the functions; no `switch(side_index)` remains.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[geometry]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[geometry]"`; golden passes.
+
+**Implementation notes (fez_mode-777.11):**
+- `geometry/FaceDecoding.{h,cpp}`: `decodeFaceNormal` returns the same vectors as the old `pos_x`…`neg_z` constants
+  (misnamed, fixed in Task 31); `faceUvOffset` returns `float(side)` for 0–5 and `0` otherwise.
+- `GeometryParser.cpp` adds the offset only when it is non-zero, so side 0 leaves U untouched as before (a U of `-0`
+  would otherwise become `+0`). The old `+= n.0` was a double addition rounded to float; the float addition gives the
+  same result (double rounding is innocuous for a single float addition).
+- `tests/unit/FaceDecodingTests.cpp` (`[geometry]`): 4 test cases / 22 assertions, written first and seen failing
+  to compile.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[geometry]"` passed; `ctest --preset
+  windows-debug` and `windows-release` 49/49; `ctest --preset windows-release-golden` passed against `golden/v1` (495 s).
 
 **Dependencies:** Task 10
 

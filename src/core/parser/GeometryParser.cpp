@@ -1,5 +1,7 @@
 #include "parser/GeometryParser.h"
 
+#include "geometry/FaceDecoding.h"
+
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
@@ -104,23 +106,12 @@ GeometryParser::VerticesResult GeometryParser::parseVertices(const QDomElement& 
         if(!side_index_ok)
             return {};
 
-        static const auto pos_x = Vec3f{-1, 0, 0};
-        static const auto pos_y = Vec3f{0, -1, 0};
-        static const auto pos_z = Vec3f{0, 0, -1};
-        static const auto neg_x = Vec3f{1, 0, 0};
-        static const auto neg_y = Vec3f{0, 1, 0};
-        static const auto neg_z = Vec3f{0, 0, 1};
+        const auto normal = decodeFaceNormal(side_index);
 
-        switch(side_index)
-        {
-            case 0: vertex.m_Normal = pos_x; break;
-            case 1: vertex.m_Normal = pos_y; break;
-            case 2: vertex.m_Normal = pos_z; break;
-            case 3: vertex.m_Normal = neg_x; break;
-            case 4: vertex.m_Normal = neg_y; break;
-            case 5: vertex.m_Normal = neg_z; break;
-            default: return {};
-        }
+        if(!normal)
+            return {};
+
+        vertex.m_Normal = *normal;
 
         // texture coordinate
         const auto vec2_elem = texture_coord_elem.firstChildElement("Vector2");
@@ -137,16 +128,9 @@ GeometryParser::VerticesResult GeometryParser::parseVertices(const QDomElement& 
         vertex.m_TextureCoordinate.x() = vec2_elem.attribute("x").toFloat(&x_ok);
         vertex.m_TextureCoordinate.y() = 1.0f - vec2_elem.attribute("y").toFloat(&y_ok);
 
-        switch(side_index)
-        {
-            case 0: break;
-            case 1: vertex.m_TextureCoordinate.x() += 1.0; break;
-            case 2: vertex.m_TextureCoordinate.x() += 2.0; break;
-            case 3: vertex.m_TextureCoordinate.x() += 3.0; break;
-            case 4: vertex.m_TextureCoordinate.x() += 4.0; break;
-            case 5: vertex.m_TextureCoordinate.x() += 5.0; break;
-            default: break;
-        }
+        // Side 0 adds nothing (as before), so a U of -0 stays -0.
+        if(const auto uv_offset = faceUvOffset(side_index); uv_offset != 0.0f)
+            vertex.m_TextureCoordinate.x() += uv_offset;
 
         if(!x_ok || !y_ok)
             return {};
