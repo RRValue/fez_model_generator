@@ -456,12 +456,36 @@ model header self-contained (compile-check test that includes each header alone)
 errors. Test-driven; not yet used by parsers.
 
 **Acceptance criteria:**
-- [ ] Each helper has tests for valid input, missing element/attribute and malformed number, asserting `ErrorKind`
+- [x] Each helper has tests for valid input, missing element/attribute and malformed number, asserting `ErrorKind`
       and element path.
-- [ ] `loadXml` on a malformed file returns `XmlSyntax` with line and column.
+- [x] `loadXml` on a malformed file returns `XmlSyntax` with line and column.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[xml]"`; build succeeds.
+- [x] Tests pass: `fez_tests.exe "[xml]"`; build succeeds.
+
+**Implementation notes (fez_mode-777.10):**
+- `error/Error.h`: `ErrorKind` (`FileNotFound`, `XmlSyntax`, `MissingElement`, `MissingAttribute`, `BadValue`,
+  `Export`, `Io`), `struct Error { ErrorKind kind; std::string message; std::string source; }` (UTF-8) and
+  `constexpr toString(ErrorKind)`.
+- **Deviation – formatter header:** `std::formatter<QString>` lives in its own header `format/QStringFormatter.h`
+  (UTF-8, inherits the `std::string_view` format specs) so `xml/` and the later `log/` facade can share it without
+  `Error.h` depending on Qt.
+- `xml/Xml.{h,cpp}`: `loadXml(path)` (`FileNotFound`; `Io` for a directory or unreadable file; `XmlSyntax` with
+  source `<path>:<line>:<column>`), plus `parseXml(bytes, sourceName)` (same errors from memory, used by `loadXml`
+  and the tests); `elementPath(elem)`; `childElement(parent, name)` (`MissingElement`, source
+  `<parent path>/<name>`); `childElements(parent, name = {})` (forward range of direct children, all child elements
+  when the name is empty); `attribute<T>` for `QString`, `float`, `int`, `unsigned` (constrained by a concept, converted
+  with `QString::toFloat`/`toInt`/`toUInt` like the parsers today); `readBool` (case-insensitive `true`/`false`,
+  anything else is `BadValue`, the same rule `LevelParser` applies to `animated`); `readVector2`, `readVector3`,
+  `readQuaternion` (reads `w, x, y, z`, builds `QuaternionF{w, x, y, z}`). Content errors carry
+  `<element path>@<attribute>` as source.
+- Element paths: tag names from the document element down, an element gets a 1-based `[n]` (XPath style) only when it
+  has same-named siblings, e.g. `Level/ArtObjects/Entry[3]/ArtObjectInstance@name`.
+- `tests/unit/XmlTests.cpp` (`[xml]`, Error/formatter cases also `[error]`/`[format]`): 28 test cases, written first
+  and seen failing to compile; loadXml cases write files into a `QTemporaryDir`. Not yet used by any parser.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[xml]"` 28/28 (154 assertions);
+  `ctest --preset windows-debug` and `windows-release` 45/45; `ctest --preset windows-release-golden` passed against
+  `golden/v1` (532 s).
 
 **Dependencies:** Task 9
 

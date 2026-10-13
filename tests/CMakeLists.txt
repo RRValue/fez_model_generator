@@ -10,6 +10,7 @@ add_executable(fez_tests
     unit/SupportTests.cpp
     unit/TreeCompareTests.cpp
     unit/ModelHeaderTests.cpp
+    unit/XmlTests.cpp
     unit/model_headers/ArtObjectHeader.cpp
     unit/model_headers/BackgroundPlaneHeader.cpp
     unit/model_headers/CharacterHeader.cpp
@@ -23,7 +24,7 @@ add_executable(fez_tests
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX tests
     FILES support/main.cpp support/TestData.h support/TreeCompare.h support/TreeCompare.cpp
-          unit/SupportTests.cpp unit/TreeCompareTests.cpp unit/ModelHeaderTests.cpp
+          unit/SupportTests.cpp unit/TreeCompareTests.cpp unit/ModelHeaderTests.cpp unit/XmlTests.cpp
           unit/model_headers/ArtObjectHeader.cpp unit/model_headers/BackgroundPlaneHeader.cpp
           unit/model_headers/CharacterHeader.cpp unit/model_headers/GeometryHeader.cpp
           unit/model_headers/LevelHeader.cpp unit/model_headers/TrileEmplacementHeader.cpp

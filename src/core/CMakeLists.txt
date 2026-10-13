@@ -2,6 +2,8 @@
 # Sources are listed explicitly (no file(GLOB)); add new files here.
 
 set(FEZ_CORE_SOURCES
+    error/Error.h
+    format/QStringFormatter.h
     math/Quaternion.h
     math/Vector.h
     model/ArtObject.h
@@ -28,6 +30,8 @@ set(FEZ_CORE_SOURCES
     writer/LevelWriter.h
     writer/Writer.cpp
     writer/Writer.h
+    xml/Xml.cpp
+    xml/Xml.h
 )
 
 add_library(fez_core STATIC ${FEZ_CORE_SOURCES})
