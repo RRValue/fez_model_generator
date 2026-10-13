@@ -11,6 +11,9 @@
 #include <map>
 #include <vector>
 
+namespace fez
+{
+
 struct Level
 {
     using TrileEmplacements = std::vector<TrileEmplacement>;
@@ -35,3 +38,5 @@ struct Level
 
     Characters m_Characters = {};
 };
+
+} // namespace fez

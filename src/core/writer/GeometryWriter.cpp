@@ -6,6 +6,9 @@
 #include <assimp/Exporter.hpp>
 #include <assimp/scene.h>
 
+namespace fez
+{
+
 void GeometryWriter::writeObj(const Geometry& geometry)
 {
     m_SaveName = geometry.m_Name;
@@ -32,3 +35,5 @@ void GeometryWriter::writeObj(const Geometry& geometry)
 
     save();
 }
+
+} // namespace fez

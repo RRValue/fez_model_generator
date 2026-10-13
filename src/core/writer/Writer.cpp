@@ -8,6 +8,9 @@
 #include <assimp/Exporter.hpp>
 #include <assimp/scene.h>
 
+namespace fez
+{
+
 Writer::Writer(const QString& path) : m_Path{path}, m_Scene{new aiScene()}
 {
     m_Scene->mNumMeshes = 0;
@@ -200,3 +203,5 @@ void Writer::save()
         texture.copy(t.second);
     }
 }
+
+} // namespace fez

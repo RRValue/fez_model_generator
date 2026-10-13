@@ -6,6 +6,9 @@
 
 #include <QtCore/QString>
 
+namespace fez
+{
+
 struct BackgroundPlane
 {
     QString m_Name;
@@ -14,3 +17,5 @@ struct BackgroundPlane
     Vec3f m_Scale = Vec3f::Zero();
     Geometry m_Geometry = {};
 };
+
+} // namespace fez

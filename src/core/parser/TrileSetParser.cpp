@@ -6,6 +6,9 @@
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 
+namespace fez
+{
+
 TrileSetParser::TrileSetParser() : m_Document{}
 {
 }
@@ -142,3 +145,5 @@ TrileSetParser::TrileResult TrileSetParser::parserTrile(const QDomElement& elem)
 
     return std::make_pair(key, *geometry);
 }
+
+} // namespace fez

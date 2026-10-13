@@ -2,6 +2,9 @@
 
 #include "math/Vector.h"
 
+namespace fez
+{
+
 struct TrileEmplacement
 {
     int m_Id = 0;
@@ -9,3 +12,5 @@ struct TrileEmplacement
     Vec3f m_Position = Vec3f::Zero();
     unsigned int m_Orintation = 0;
 };
+
+} // namespace fez

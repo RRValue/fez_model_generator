@@ -6,6 +6,9 @@
 
 #include <QtCore/QString>
 
+namespace fez
+{
+
 class GeometryWriter : public Writer
 {
 public:
@@ -13,3 +16,5 @@ public:
 
     void writeObj(const Geometry& geometry);
 };
+
+} // namespace fez

@@ -9,6 +9,9 @@
 
 #include <qdebug.h>
 
+namespace fez
+{
+
 GeometryParser::GeometryParser() : m_Document{}
 {
 }
@@ -196,3 +199,5 @@ GeometryParser::IndicesResult GeometryParser::parseIndices(const QDomElement& el
 
     return result;
 }
+
+} // namespace fez

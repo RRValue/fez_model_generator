@@ -7,6 +7,9 @@
 #include <tuple>
 #include <vector>
 
+namespace fez
+{
+
 struct Texture
 {
     using TextureAnimationOffsets = std::vector<std::tuple<unsigned int, Vec2f, Vec2f>>;
@@ -18,3 +21,5 @@ struct Texture
     unsigned int m_Height = 0;
     TextureAnimationOffsets m_TextureAnimationOffsets = {};
 };
+
+} // namespace fez

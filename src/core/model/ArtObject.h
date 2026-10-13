@@ -5,6 +5,9 @@
 
 #include <QtCore/QString>
 
+namespace fez
+{
+
 struct ArtObject
 {
     QString m_Name;
@@ -12,3 +15,5 @@ struct ArtObject
     QuaternionF m_Rotation = QuaternionF::Identity();
     Vec3f m_Scale = Vec3f::Zero();
 };
+
+} // namespace fez

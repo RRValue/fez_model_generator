@@ -4,6 +4,9 @@
 
 #include "writer/Writer.h"
 
+namespace fez
+{
+
 class LevelWriter : public Writer
 {
 public:
@@ -11,3 +14,5 @@ public:
 
     void writeLevel(const Level& level);
 };
+
+} // namespace fez

@@ -391,10 +391,19 @@ and a second temp dir as `--output`, then compares with `compareTrees`. The copy
 uses `fez::`. No other edits.
 
 **Acceptance criteria:**
-- [ ] All `fez_core` symbols live in `fez`; no `using namespace fez;` in headers.
+- [x] All `fez_core` symbols live in `fez`; no `using namespace fez;` in headers.
 
 **Verification:**
-- [ ] Build succeeds; default and golden tests pass.
+- [x] Build succeeds; default and golden tests pass.
+
+**Implementation notes (fez_mode-777.8):**
+- All 26 files in `src/core` get `namespace fez` / `{` after their includes and `} // namespace fez` at the end; the
+  body is not re-indented, so the diff is only the added lines (plus a final newline where one was missing). The math
+  aliases (`Vec2f`, `Vec3f`, `Vec3ui`, `QuaternionF`) and the static members of `LevelParser` are inside `fez`; the
+  assimp forward declarations (`struct aiMesh;` etc.) stay at global scope because they name assimp's types.
+- `src/cli/Application.cpp` qualifies the five uses as `fez::ArtObjectParser`, `fez::TrileSetParser`,
+  `fez::LevelParser`, `fez::GeometryWriter`, `fez::LevelWriter`; no `using namespace fez;` anywhere. Tests do not use
+  `fez_core` symbols yet, so they are unchanged. Line endings of every file are preserved (CRLF and LF).
 
 **Dependencies:** Task 7
 

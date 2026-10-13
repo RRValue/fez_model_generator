@@ -8,6 +8,9 @@ struct aiScene;
 struct aiMesh;
 struct aiMaterial;
 
+namespace fez
+{
+
 class Writer
 {
     using Textures = std::vector<std::pair<QString, QString>>;
@@ -40,3 +43,5 @@ protected:
     aiScene* m_Scene;
     Textures m_Textures;
 };
+
+} // namespace fez

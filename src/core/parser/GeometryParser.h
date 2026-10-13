@@ -6,6 +6,9 @@
 
 #include <QtXml/QDomDocument>
 
+namespace fez
+{
+
 class GeometryParser
 {
     using GeometryResult = std::optional<Geometry>;
@@ -27,3 +30,5 @@ private:
     QString m_Name;
     QString m_Path;
 };
+
+} // namespace fez

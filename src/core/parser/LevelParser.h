@@ -8,6 +8,9 @@
 
 #include <QtXml/QDomDocument>
 
+namespace fez
+{
+
 class LevelParser
 {
     using LevelResult = std::optional<Level>;
@@ -57,3 +60,5 @@ private:
     static QMutex sm_TextureCacheMutex;
     static TextureCache sm_TextureCache;
 };
+
+} // namespace fez

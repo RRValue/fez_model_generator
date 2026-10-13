@@ -7,6 +7,9 @@
 
 #include <vector>
 
+namespace fez
+{
+
 struct Geometry
 {
 	using Vertices = std::vector<Vertex>;
@@ -20,3 +23,5 @@ struct Geometry
     bool m_DoubleSided = true;
     bool m_IsPlane = false;
 };
+
+} // namespace fez

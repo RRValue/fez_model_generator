@@ -13,6 +13,9 @@
 
 #include <qdebug.h>
 
+namespace fez
+{
+
 QMutex LevelParser::sm_TrileSetCacheMutex = {};
 LevelParser::TrileSetCache LevelParser::sm_TrileSetCache = {};
 
@@ -887,3 +890,5 @@ LevelParser::CharactersResult LevelParser::parseCharacters(const Level::Characte
 
     return result;
 }
+
+} // namespace fez

@@ -6,6 +6,9 @@
 
 #include <QtGui/QImage>
 
+namespace fez
+{
+
 TextureParser::TextureParser() : m_Document{}
 {
 }
@@ -156,3 +159,5 @@ TextureParser::TextureResult TextureParser::parse(const QString& path, const QSt
 
     return result;
 }
+
+} // namespace fez

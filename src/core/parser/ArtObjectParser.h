@@ -9,6 +9,9 @@
 struct aiMesh;
 struct aiMaterial;
 
+namespace fez
+{
+
 class ArtObjectParser
 {
     using GeometryResult = std::optional<Geometry>;
@@ -22,3 +25,5 @@ public:
 private:
     QDomDocument m_Document;
 };
+
+} // namespace fez

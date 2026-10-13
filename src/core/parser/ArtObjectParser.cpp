@@ -7,6 +7,9 @@
 
 #include <qdebug.h>
 
+namespace fez
+{
+
 ArtObjectParser::ArtObjectParser() : m_Document{}
 {
 }
@@ -67,3 +70,5 @@ ArtObjectParser::GeometryResult ArtObjectParser::parse(const QString& path) noex
 
     return geometry;
 }
+
+} // namespace fez

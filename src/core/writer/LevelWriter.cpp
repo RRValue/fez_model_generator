@@ -8,6 +8,9 @@
 
 #include <numbers>
 
+namespace fez
+{
+
 void LevelWriter::writeLevel(const Level& level)
 {
     m_SaveName = level.m_LevelName;
@@ -139,3 +142,5 @@ void LevelWriter::writeLevel(const Level& level)
 
     save();
 }
+
+} // namespace fez

@@ -6,6 +6,9 @@
 
 #include <QtXml/QDomDocument>
 
+namespace fez
+{
+
 class TrileSetParser
 {
     using TrileResult = std::optional<std::pair<int, Geometry>>;
@@ -29,3 +32,5 @@ private:
     QString m_Name;
     QString m_OutPath;
 };
+
+} // namespace fez

@@ -69,7 +69,7 @@ void Application::processArtObjects(const QString& input_path, const QString& ou
         art_objects_files.push_back(ao_xml_iter.next());
 
     const auto export_function = [](const auto& file, const auto& path) -> void{
-        ArtObjectParser parser;
+        fez::ArtObjectParser parser;
         const auto result = parser.parse(file);
 
         if(!result)
@@ -77,7 +77,7 @@ void Application::processArtObjects(const QString& input_path, const QString& ou
 
         qDebug() << "Write: " << result->m_Name;
 
-        GeometryWriter(path + "/ao_export").writeObj(*result);
+        fez::GeometryWriter(path + "/ao_export").writeObj(*result);
     };
 
     auto waiter = QFutureSynchronizer<void>();
@@ -98,7 +98,7 @@ void Application::processTrileSets(const QString& input_path, const QString& out
         trile_set_files.push_back(ts_xml_iter.next());
 
     const auto export_function = [](const auto& file, const auto& path) -> void {
-        TrileSetParser parser;
+        fez::TrileSetParser parser;
         const auto result = parser.parse(file);
         const auto& set_name = parser.getSetName();
 
@@ -106,7 +106,7 @@ void Application::processTrileSets(const QString& input_path, const QString& out
         {
             qDebug() << "Write: " << r.second.m_Name;
 
-            GeometryWriter(path + "/ts_export/" + set_name).writeObj(r.second);
+            fez::GeometryWriter(path + "/ts_export/" + set_name).writeObj(r.second);
         }
     };
 
@@ -128,13 +128,13 @@ void Application::processLevels(const QString& input_path, const QString& output
         level_files.push_back(lvl_xml_iter.next());
 
     const auto export_function = [](const auto& file, const auto& path) -> void {
-        LevelParser parser;
+        fez::LevelParser parser;
         const auto level = parser.parse(file);
 
         if(!level)
             return;
 
-        LevelWriter(path + "/lv_export/" + level->m_LevelName).writeLevel(*level);
+        fez::LevelWriter(path + "/lv_export/" + level->m_LevelName).writeLevel(*level);
     };
 
     auto waiter = QFutureSynchronizer<void>();

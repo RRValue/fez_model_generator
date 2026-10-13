@@ -6,6 +6,9 @@
 
 #include <QtXml/QDomDocument>
 
+namespace fez
+{
+
 class TextureParser
 {
     using TextureResult = std::optional<Texture>;
@@ -19,3 +22,5 @@ public:
 private:
     QDomDocument m_Document;
 };
+
+} // namespace fez
