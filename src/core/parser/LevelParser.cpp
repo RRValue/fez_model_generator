@@ -1,5 +1,7 @@
 #include "parser/LevelParser.h"
 
+#include "geometry/TexturedQuad.h"
+
 #include "parser/ArtObjectParser.h"
 #include "parser/TextureParser.h"
 #include "parser/TrileSetParser.h"
@@ -15,6 +17,18 @@
 
 namespace fez
 {
+
+namespace
+{
+    // UV rectangle of a plane/NPC quad: the first frame of an animated texture, otherwise the whole texture.
+    UvRect firstFrameUv(const Texture& texture)
+    {
+        if(texture.m_IsAnimated)
+            return {texture.m_TextureAnimationOffsets[0].m_Offset, texture.m_TextureAnimationOffsets[0].m_Size};
+
+        return {Vec2f{0.0f, 0.0f}, Vec2f{1.0f, 1.0f}};
+    }
+} // namespace
 
 QMutex LevelParser::sm_TrileSetCacheMutex = {};
 LevelParser::TrileSetCache LevelParser::sm_TrileSetCache = {};
@@ -658,37 +672,17 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
     {
         const auto& texture = backgroundPlane.m_Geometry.m_Texture;
 
+        // Integer division kept on purpose (fixed in Task 28).
         const auto geom_w = float(texture.m_Width / 16);
         const auto geom_h = float(texture.m_Height / 16);
 
         auto back_ground_plane = backgroundPlane;
 
-        back_ground_plane.m_Geometry.m_IsPlane = true;
-        back_ground_plane.m_Geometry.m_Vertices = Geometry::Vertices(4);
-        back_ground_plane.m_Geometry.m_Indices = Geometry::Indices(6);
+        Geometry quad = makeTexturedQuad(Vec2f{geom_w, geom_h}, firstFrameUv(texture), 0.05f);
 
-        const auto normal = Vec3f{0.0f, 0.0f, 1.0f};
-        const Vec3f move_out_vec = normal * 0.05f;
-
-        const Vec3f p0 = Vec3f{-geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
-        const Vec3f p1 = Vec3f{-geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
-        const Vec3f p2 = Vec3f{geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
-        const Vec3f p3 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
-
-        const auto texture_coord_p = texture.m_IsAnimated ? texture.m_TextureAnimationOffsets[0].m_Offset : Vec2f{0.0f, 0.0f};
-        const Vec2f texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? texture.m_TextureAnimationOffsets[0].m_Size : Vec2f{1.0f, 1.0f});
-
-        back_ground_plane.m_Geometry.m_Vertices[0] = {p0, normal, {texture_coord_p.x(), 1.0f - texture_coord_p.y()}};
-        back_ground_plane.m_Geometry.m_Vertices[1] = {p1, normal, {texture_coord_p.x(), 1.0f - texture_coord_s.y()}};
-        back_ground_plane.m_Geometry.m_Vertices[2] = {p2, normal, {texture_coord_s.x(), 1.0f - texture_coord_p.y()}};
-        back_ground_plane.m_Geometry.m_Vertices[3] = {p3, normal, {texture_coord_s.x(), 1.0f - texture_coord_s.y()}};
-
-        back_ground_plane.m_Geometry.m_Indices[0] = 0;
-        back_ground_plane.m_Geometry.m_Indices[1] = 1;
-        back_ground_plane.m_Geometry.m_Indices[2] = 2;
-        back_ground_plane.m_Geometry.m_Indices[3] = 2;
-        back_ground_plane.m_Geometry.m_Indices[4] = 1;
-        back_ground_plane.m_Geometry.m_Indices[5] = 3;
+        back_ground_plane.m_Geometry.m_IsPlane = quad.m_IsPlane;
+        back_ground_plane.m_Geometry.m_Vertices = std::move(quad.m_Vertices);
+        back_ground_plane.m_Geometry.m_Indices = std::move(quad.m_Indices);
 
         back_ground_plane.m_Geometry.m_Name = back_ground_plane.m_Geometry.m_Texture.m_TextureName;
 
@@ -857,31 +851,11 @@ LevelParser::CharactersResult LevelParser::parseCharacters(const Level::Characte
 
         auto character_res = character;
 
-        character_res.m_Geometry.m_IsPlane = true;
-        character_res.m_Geometry.m_Vertices = Geometry::Vertices(4);
-        character_res.m_Geometry.m_Indices = Geometry::Indices(6);
+        Geometry quad = makeTexturedQuad(Vec2f{geom_w, geom_h}, firstFrameUv(texture), 0.0f);
 
-        const auto normal = Vec3f{0.0f, 0.0f, 1.0f};
-
-        const auto p0 = Vec3f{-geom_w / 2, geom_h / 2, 0.0f};
-        const auto p1 = Vec3f{-geom_w / 2, -geom_h / 2, 0.0f};
-        const auto p2 = Vec3f{geom_w / 2, geom_h / 2, 0.0f};
-        const auto p3 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f};
-
-        const auto texture_coord_p = texture.m_IsAnimated ? texture.m_TextureAnimationOffsets[0].m_Offset : Vec2f{0.0f, 0.0f};
-        const Vec2f texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? texture.m_TextureAnimationOffsets[0].m_Size : Vec2f{1.0f, 1.0f});
-
-        character_res.m_Geometry.m_Vertices[0] = {p0, normal, {texture_coord_p.x(), 1.0f - texture_coord_p.y()}};
-        character_res.m_Geometry.m_Vertices[1] = {p1, normal, {texture_coord_p.x(), 1.0f - texture_coord_s.y()}};
-        character_res.m_Geometry.m_Vertices[2] = {p2, normal, {texture_coord_s.x(), 1.0f - texture_coord_p.y()}};
-        character_res.m_Geometry.m_Vertices[3] = {p3, normal, {texture_coord_s.x(), 1.0f - texture_coord_s.y()}};
-
-        character_res.m_Geometry.m_Indices[0] = 0;
-        character_res.m_Geometry.m_Indices[1] = 1;
-        character_res.m_Geometry.m_Indices[2] = 2;
-        character_res.m_Geometry.m_Indices[3] = 2;
-        character_res.m_Geometry.m_Indices[4] = 1;
-        character_res.m_Geometry.m_Indices[5] = 3;
+        character_res.m_Geometry.m_IsPlane = quad.m_IsPlane;
+        character_res.m_Geometry.m_Vertices = std::move(quad.m_Vertices);
+        character_res.m_Geometry.m_Indices = std::move(quad.m_Indices);
 
         character_res.m_Geometry.m_Name = character_res.m_Geometry.m_Texture.m_TextureName;
 

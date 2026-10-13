@@ -531,11 +531,25 @@ quad code for background planes (offset 0.05) and NPCs (offset 0). Callers compu
 site keeps the integer division `float(width / 16)` (fixed in Task 28).
 
 **Acceptance criteria:**
-- [ ] Tests check 4 vertices, indices `0,1,2,2,1,3`, normal +Z, V flip, depth offset.
-- [ ] `parseBackgroundPlanes`/`parseCharacters` both call the builder.
+- [x] Tests check 4 vertices, indices `0,1,2,2,1,3`, normal +Z, V flip, depth offset.
+- [x] `parseBackgroundPlanes`/`parseCharacters` both call the builder.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[geometry]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[geometry]"`; golden passes.
+
+**Implementation notes (fez_mode-777.12):**
+- `geometry/TexturedQuad.{h,cpp}`: `struct UvRect { Vec2f m_Offset; Vec2f m_Size; }` (FEZ convention, V down; default
+  the whole texture) and `makeTexturedQuad(size, uv, depthOffset)`. It sets only `m_Vertices`, `m_Indices` and
+  `m_IsPlane`; the parsers keep their texture, opacity, sidedness and set the name as before.
+- The depth offset vector is added only when `depthOffset != 0`: the old plane code added `(0, 0, 0.05)` (turning a
+  `-0` X/Y into `+0` for the degenerate planes of textures narrower than 16 px), the old NPC code added nothing (a `-0`
+  stays `-0`). A test pins both signs of zero.
+- `LevelParser.cpp` gets a file-local `firstFrameUv(texture)` (first animation frame, otherwise `(0,0)`/`(1,1)`) shared
+  by both call sites; the plane size keeps `float(width / 16)`, the NPC size `float(width) / 16`.
+- `tests/unit/TexturedQuadTests.cpp` (`[geometry]`): 6 test cases, written first and seen failing to compile.
+- Checks: Debug and Release build (no new warnings); `fez_tests.exe "[geometry]"` 10 test cases / 55 assertions;
+  `ctest --preset windows-debug` and `windows-release` 55/55; `ctest --preset windows-release-golden` passed against
+  `golden/v1` (539 s).
 
 **Dependencies:** Task 10
 
