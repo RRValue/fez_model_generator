@@ -25,6 +25,14 @@
     {
       "name": "windows-release", "inherits": "windows-release-base", "configurePreset": "windows-vs",
       "environment": { "FEZ_DATA_DIR": "C:/path/to/fez/export-copy", "FEZ_GOLDEN_DIR": "C:/path/to/fez/golden/v1" }
+    },
+    {
+      "name": "windows-debug-golden", "inherits": "windows-debug-golden-base", "configurePreset": "windows-vs",
+      "environment": { "FEZ_DATA_DIR": "C:/path/to/fez/export-copy", "FEZ_GOLDEN_DIR": "C:/path/to/fez/golden/v1" }
+    },
+    {
+      "name": "windows-release-golden", "inherits": "windows-release-golden-base", "configurePreset": "windows-vs",
+      "environment": { "FEZ_DATA_DIR": "C:/path/to/fez/export-copy", "FEZ_GOLDEN_DIR": "C:/path/to/fez/golden/v1" }
     }
   ]
 }

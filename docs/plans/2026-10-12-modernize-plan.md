@@ -53,7 +53,7 @@ without changing a single output byte. Phase 2 fixes known bugs, one deliberatel
 | Build | `cmake --build --preset windows-debug` |
 | All default tests | `ctest --preset windows-debug` |
 | Focused tests | `build\windows-vs\bin\Debug\fez_tests.exe "[tag]"` |
-| Golden test | `ctest --preset windows-debug -L golden` (needs `FEZ_DATA_DIR`, `FEZ_GOLDEN_DIR`) |
+| Golden test | `ctest --preset windows-debug-golden` or `windows-release-golden` (needs `FEZ_DATA_DIR`, `FEZ_GOLDEN_DIR`; see Task 5) |
 | Run converter | `build\windows-vs\bin\Debug\fez_model_generator.exe --input <export> --output <fresh dir>` |
 
 The converter must always write into a **fresh, empty** output directory: `QFile::copy` does not overwrite, so stale
@@ -247,12 +247,37 @@ Because this test is registered by hand, it does not receive the `DL_PATHS` of `
 (`installed/x64-windows/bin`, or `installed/x64-windows/debug/bin` for Debug).
 
 **Acceptance criteria:**
-- [ ] `ctest --preset windows-debug -L golden` passes against `golden/v1` without Qt or vcpkg on the caller's `PATH`.
-- [ ] Temporarily editing one byte of a reference `.mtl` copy makes the test fail with file name and line.
-- [ ] Default `ctest --preset windows-debug` does not run the golden test.
+- [x] `ctest --preset windows-debug -L golden` passes against `golden/v1` without Qt or vcpkg on the caller's `PATH`.
+      *(Run as `ctest --preset windows-debug-golden`; see implementation notes.)*
+- [x] Temporarily editing one byte of a reference `.mtl` copy makes the test fail with file name and line.
+- [x] Default `ctest --preset windows-debug` does not run the golden test.
 
 **Verification:**
-- [ ] Tests pass: `ctest --preset windows-debug` and `ctest --preset windows-debug -L golden`
+- [x] Tests pass: `ctest --preset windows-debug` and `ctest --preset windows-debug -L golden` (as `windows-debug-golden`)
+
+**Implementation notes (fez_mode-777.5):**
+- **Deviation – golden presets instead of `-L golden`:** CTest only narrows a preset's filter with command-line
+  options (a preset `exclude.label golden` plus `-L golden` selects nothing), and a `CTestTestfile` include script
+  cannot see the `-L` arguments, so "default run excludes it" and "`--preset windows-debug -L golden` runs it" cannot
+  both hold. The hidden base test presets in `CMakePresets.json` now exclude label `golden` (and set
+  `noTestsAction: error`); new hidden `windows-{debug,release}-golden-base` include only label `golden`, and the user
+  presets (`CMakeUserPresets.example.json` mirrors it) add visible `windows-debug-golden` / `windows-release-golden`
+  with the `FEZ_*` environment. `ctest --preset windows-debug -L golden` now selects 0 tests. Later tasks that say
+  "`-L golden`" mean `ctest --preset windows-debug-golden` (or `windows-release-golden`, ~6x faster).
+- `tests/golden/GoldenTests.cpp`: `TEST_CASE(..., "[.golden]")` reads `FEZ_DATA_DIR`/`FEZ_GOLDEN_DIR` from the
+  environment and `SKIP`s when either is unset (CTest shows "Skipped" via `SKIP_RETURN_CODE 4`). It deletes
+  `<FEZ_DATA_DIR>/trile sets/exported` before and after the run (pristine-input rule, until Task 16), runs
+  `FEZ_MODEL_GENERATOR_EXE` (`$<TARGET_FILE:FezModelGenerator>` of the same configuration; `fez_tests` depends on
+  it) with `QProcess` into a fresh `QTemporaryDir`, requires exit code 0 (last 40 output lines on failure) and checks
+  `compareTrees(goldenDir, outputDir)` with `describe()` as the failure message.
+- CTest entry `fez_golden` (`add_test(... COMMAND fez_tests "[golden]")`), `LABELS golden`, `TIMEOUT 7200`,
+  `ENVIRONMENT_MODIFICATION` prepending `FEZ_VCPKG_BIN_DIR` and `FEZ_QT_BIN_DIR` to `PATH`.
+- Verified with Qt and vcpkg removed from the caller's `PATH`: `windows-release-golden` passed in 507 s,
+  `windows-debug-golden` passed in 3160 s (~53 min). One byte of `lv_export/ARCH/ARCH.mtl` changed in a temporary copy of
+  `v1` (`FEZ_GOLDEN_DIR` pointed at it, Release, 520 s): fails with
+  `differing: lv_export/ARCH/ARCH.mtl (first difference at line 5)` plus expected/actual line; copy deleted.
+  Default `ctest --preset windows-debug`/`windows-release`: 14 tests, `fez_golden` not among them. With
+  `FEZ_DATA_DIR`/`FEZ_GOLDEN_DIR` unset (`ctest --test-dir build/windows-vs -C Debug -L golden`): Skipped.
 
 **Dependencies:** Tasks 3, 4
 

@@ -23,7 +23,25 @@
     { "name": "windows-release-base", "hidden": true, "configuration": "Release" }
   ],
   "testPresets": [
-    { "name": "windows-debug-base", "hidden": true, "configuration": "Debug", "output": { "outputOnFailure": true } },
-    { "name": "windows-release-base", "hidden": true, "configuration": "Release", "output": { "outputOnFailure": true } }
+    {
+      "name": "windows-debug-base", "hidden": true, "configuration": "Debug", "output": { "outputOnFailure": true },
+      "description": "Default tests. Excludes the long-running golden test (label 'golden'); see windows-debug-golden-base.",
+      "filter": { "exclude": { "label": "golden" } }, "execution": { "noTestsAction": "error" }
+    },
+    {
+      "name": "windows-release-base", "hidden": true, "configuration": "Release", "output": { "outputOnFailure": true },
+      "description": "Default tests. Excludes the long-running golden test (label 'golden'); see windows-release-golden-base.",
+      "filter": { "exclude": { "label": "golden" } }, "execution": { "noTestsAction": "error" }
+    },
+    {
+      "name": "windows-debug-golden-base", "hidden": true, "configuration": "Debug", "output": { "outputOnFailure": true },
+      "description": "Only the golden regression test (label 'golden'); needs FEZ_DATA_DIR and FEZ_GOLDEN_DIR.",
+      "filter": { "include": { "label": "golden" } }, "execution": { "noTestsAction": "error" }
+    },
+    {
+      "name": "windows-release-golden-base", "hidden": true, "configuration": "Release", "output": { "outputOnFailure": true },
+      "description": "Only the golden regression test (label 'golden'); needs FEZ_DATA_DIR and FEZ_GOLDEN_DIR.",
+      "filter": { "include": { "label": "golden" } }, "execution": { "noTestsAction": "error" }
+    }
   ]
 }
