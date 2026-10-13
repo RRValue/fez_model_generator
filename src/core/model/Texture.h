@@ -4,15 +4,21 @@
 
 #include <QtCore/QString>
 
-#include <tuple>
 #include <vector>
 
 namespace fez
 {
 
+struct AnimationFrame
+{
+    unsigned int m_Duration = 0;
+    Vec2f m_Offset = Vec2f::Zero();
+    Vec2f m_Size = Vec2f::Zero();
+};
+
 struct Texture
 {
-    using TextureAnimationOffsets = std::vector<std::tuple<unsigned int, Vec2f, Vec2f>>;
+    using TextureAnimationOffsets = std::vector<AnimationFrame>;
 
     QString m_TextureName = {};
     QString m_TextureOrgFile = {};

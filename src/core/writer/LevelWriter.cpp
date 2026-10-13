@@ -78,7 +78,7 @@ void LevelWriter::writeLevel(const Level& level)
                 case 3: return aiQuaternion(std::numbers::pi_v<float> * 0.5f, 0.0f, 0.0f);
                 default: return aiQuaternion();
             }
-        }(te.m_Orintation);
+        }(te.m_Orientation);
 
         node->mTransformation = aiMatrix4x4(sca, rot, pos);
 

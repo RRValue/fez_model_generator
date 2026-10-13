@@ -213,7 +213,7 @@ LevelParser::TrileEmplacementsResult LevelParser::readTrileEmplacements(const QD
         auto orientation_ok = false;
 
         trile_emplacement.m_Id = trile_instance_elem.attribute("trileId").toFloat(&trile_id_ok);
-        trile_emplacement.m_Orintation = trile_instance_elem.attribute("orientation").toFloat(&orientation_ok);
+        trile_emplacement.m_Orientation = trile_instance_elem.attribute("orientation").toFloat(&orientation_ok);
 
         if(!trile_id_ok || !orientation_ok)
             return {};
@@ -675,8 +675,8 @@ LevelParser::BackgroundPlanesResult LevelParser::parseBackgroundPlanes(const Lev
         const Vec3f p2 = Vec3f{geom_w / 2, geom_h / 2, 0.0f} + move_out_vec;
         const Vec3f p3 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f} + move_out_vec;
 
-        const auto texture_coord_p = texture.m_IsAnimated ? std::get<1>(texture.m_TextureAnimationOffsets[0]) : Vec2f{0.0f, 0.0f};
-        const Vec2f texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? std::get<2>(texture.m_TextureAnimationOffsets[0]) : Vec2f{1.0f, 1.0f});
+        const auto texture_coord_p = texture.m_IsAnimated ? texture.m_TextureAnimationOffsets[0].m_Offset : Vec2f{0.0f, 0.0f};
+        const Vec2f texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? texture.m_TextureAnimationOffsets[0].m_Size : Vec2f{1.0f, 1.0f});
 
         back_ground_plane.m_Geometry.m_Vertices[0] = {p0, normal, {texture_coord_p.x(), 1.0f - texture_coord_p.y()}};
         back_ground_plane.m_Geometry.m_Vertices[1] = {p1, normal, {texture_coord_p.x(), 1.0f - texture_coord_s.y()}};
@@ -868,8 +868,8 @@ LevelParser::CharactersResult LevelParser::parseCharacters(const Level::Characte
         const auto p2 = Vec3f{geom_w / 2, geom_h / 2, 0.0f};
         const auto p3 = Vec3f{geom_w / 2, -geom_h / 2, 0.0f};
 
-        const auto texture_coord_p = texture.m_IsAnimated ? std::get<1>(texture.m_TextureAnimationOffsets[0]) : Vec2f{0.0f, 0.0f};
-        const Vec2f texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? std::get<2>(texture.m_TextureAnimationOffsets[0]) : Vec2f{1.0f, 1.0f});
+        const auto texture_coord_p = texture.m_IsAnimated ? texture.m_TextureAnimationOffsets[0].m_Offset : Vec2f{0.0f, 0.0f};
+        const Vec2f texture_coord_s = texture_coord_p + (texture.m_IsAnimated ? texture.m_TextureAnimationOffsets[0].m_Size : Vec2f{1.0f, 1.0f});
 
         character_res.m_Geometry.m_Vertices[0] = {p0, normal, {texture_coord_p.x(), 1.0f - texture_coord_p.y()}};
         character_res.m_Geometry.m_Vertices[1] = {p1, normal, {texture_coord_p.x(), 1.0f - texture_coord_s.y()}};

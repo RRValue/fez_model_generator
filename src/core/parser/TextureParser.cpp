@@ -152,7 +152,7 @@ TextureParser::TextureResult TextureParser::parse(const QString& path, const QSt
         if(!x_ok || !y_ok || !w_ok || !h_ok)
             return {};
 
-        result.m_TextureAnimationOffsets[frame_pc_count++] = {duration, pos, size};
+        result.m_TextureAnimationOffsets[frame_pc_count++] = AnimationFrame{duration, pos, size};
 
         frame_pc_elem = frame_pc_elem.nextSiblingElement();
     }

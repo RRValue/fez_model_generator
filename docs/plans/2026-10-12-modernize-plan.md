@@ -418,11 +418,24 @@ uses `fez::`. No other edits.
 model header self-contained (compile-check test that includes each header alone).
 
 **Acceptance criteria:**
-- [ ] No `std::get<1>`/`std::get<2>` on animation frames remain.
-- [ ] A `tests/unit/ModelHeaderTests.cpp` (one TU per header or a single TU including each header first) compiles.
+- [x] No `std::get<1>`/`std::get<2>` on animation frames remain.
+- [x] A `tests/unit/ModelHeaderTests.cpp` (one TU per header or a single TU including each header first) compiles.
 
 **Verification:**
-- [ ] Build succeeds; default and golden tests pass.
+- [x] Build succeeds; default and golden tests pass.
+
+**Implementation notes (fez_mode-777.9):**
+- `model/Texture.h` defines `struct AnimationFrame { unsigned int m_Duration = 0; Vec2f m_Offset = Vec2f::Zero();
+  Vec2f m_Size = Vec2f::Zero(); }`; `Texture::TextureAnimationOffsets` is `std::vector<AnimationFrame>` (name of the
+  alias and member kept; `<tuple>` dropped). `TextureParser` stores `AnimationFrame{duration, pos, size}`;
+  `LevelParser` (background planes, NPCs) reads `.m_Offset` / `.m_Size` instead of `std::get<1>` / `std::get<2>`.
+  `TrileEmplacement::m_Orintation` → `m_Orientation` (`LevelParser`, `LevelWriter`).
+- Self-contained headers: `tests/unit/ModelHeaderTests.cpp` includes `model/Texture.h` first and tests
+  `AnimationFrame` and `m_Orientation` (`[model]`, written first and seen failing to compile); each other model header
+  is included first and alone by its own TU `tests/unit/model_headers/<Header>Header.cpp` (7 files), all in
+  `fez_tests`. No model header needed a fix: all already compiled alone.
+- Checks: Debug and Release build (no new warnings); `ctest --preset windows-debug` 17/17;
+  `ctest --preset windows-release-golden` passed against `golden/v1` (537 s).
 
 **Dependencies:** Task 8
 
