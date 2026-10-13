@@ -7,12 +7,15 @@
 #include "support/TreeCompare.h"
 
 #include <QtCore/QByteArray>
+#include <QtCore/QDateTime>
 #include <QtCore/QDir>
+#include <QtCore/QDirIterator>
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QFileInfo>
 #include <QtCore/QProcess>
 #include <QtCore/QStringList>
 #include <QtCore/QTemporaryDir>
+#include <QtCore/QTimeZone>
 #include <QtCore/QtEnvironmentVariables>
 
 #include <catch2/catch_test_macros.hpp>
@@ -30,17 +33,39 @@ namespace
         return text.toStdString();
     }
 
-    // The converter writes "trile sets/exported/" into its INPUT tree (TrileSetParser). Remove it so every run starts
-    // from the same pristine input and the result does not depend on earlier runs. Nothing else in the input is
-    // touched. Obsolete once Task 16 (parseTrileSet) stops writing into the input.
-    void removeTrileSetExportFromInput(const QString& dataDir)
+    // Every directory and file below root as "<relative path>[/] <size> <last modified>", sorted. Cheap enough for the
+    // full input copy; used to prove the converter writes nothing into its input tree.
+    QStringList snapshotTree(const QString& root)
     {
-        QDir exported(dataDir + QStringLiteral("/trile sets/exported"));
-        if (exported.exists())
+        const QDir rootDir(root);
+        QStringList entries;
+        QDirIterator it(root, QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+                        QDirIterator::Subdirectories);
+
+        while (it.hasNext())
         {
-            INFO("removing " << toStd(exported.absolutePath()));
-            REQUIRE(exported.removeRecursively());
+            const QString path = it.next();
+            const QFileInfo info = it.fileInfo();
+            entries << rootDir.relativeFilePath(path) + (info.isDir() ? QStringLiteral("/") : QString()) +
+                           QLatin1Char(' ') + QString::number(info.isDir() ? 0 : info.size()) + QLatin1Char(' ') +
+                           info.lastModified(QTimeZone::UTC).toString(Qt::ISODateWithMs);
         }
+
+        entries.sort();
+        return entries;
+    }
+
+    // Entries in one snapshot but not the other, for the failure message.
+    QString describeSnapshotDifference(const QStringList& before, const QStringList& after)
+    {
+        QStringList lines;
+        for (const QString& entry : before)
+            if (!after.contains(entry))
+                lines << QStringLiteral("- ") + entry;
+        for (const QString& entry : after)
+            if (!before.contains(entry))
+                lines << QStringLiteral("+ ") + entry;
+        return lines.mid(0, 40).join(QLatin1Char('\n'));
     }
 
     // Last lines of the converter's output, enough to see why it failed without flooding the log.
@@ -75,7 +100,8 @@ TEST_CASE("Converter output matches the golden reference", "[.golden]")
     REQUIRE(outputDir.isValid());
     INFO("output = " << toStd(outputDir.path()));
 
-    removeTrileSetExportFromInput(dataDir);
+    const QStringList inputBefore = snapshotTree(dataDir);
+    REQUIRE_FALSE(inputBefore.isEmpty());
 
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
@@ -90,8 +116,6 @@ TEST_CASE("Converter output matches the golden reference", "[.golden]")
     const QByteArray output = process.readAll();
     const double seconds = static_cast<double>(timer.elapsed()) / 1000.0;
 
-    removeTrileSetExportFromInput(dataDir);
-
     {
         INFO("converter ran " << seconds << " s; last output lines:\n" << toStd(tail(output, 40)));
         REQUIRE(finished);
@@ -102,4 +126,10 @@ TEST_CASE("Converter output matches the golden reference", "[.golden]")
     const fez::testing::TreeComparison comparison = fez::testing::compareTrees(goldenDir, outputDir.path());
     INFO(toStd(comparison.describe()));
     CHECK(comparison.identical());
+
+    // The input tree is untouched: no new directory (such as the old "trile sets/exported/"), no changed file.
+    const QStringList inputAfter = snapshotTree(dataDir);
+    INFO("input changes (first 40):\n" << toStd(describeSnapshotDifference(inputBefore, inputAfter)));
+    const bool inputUnchanged = inputAfter == inputBefore;
+    CHECK(inputUnchanged);
 }

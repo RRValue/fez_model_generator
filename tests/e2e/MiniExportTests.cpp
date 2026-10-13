@@ -2,8 +2,8 @@
 // two triles, one level with two trile emplacements, one art object instance, a static and an animated background
 // plane and one NPC) and compares the whole output tree byte for byte with tests/data/mini_expected.
 //
-// The converter runs on a temporary COPY of mini_export: until Task 16 it writes "trile sets/exported/" into its
-// input tree, which would dirty the committed fixture.
+// The converter runs on a temporary COPY of mini_export, so the committed fixture is never touched; afterwards the
+// copy must still equal the fixture (the converter writes nothing into its input tree).
 
 #include "support/TestData.h"
 #include "support/TreeCompare.h"
@@ -49,6 +49,24 @@ namespace
 
         return true;
     }
+
+    // Every directory and file below root, as sorted relative paths (directories end with '/').
+    QStringList listEntries(const QString& root)
+    {
+        const QDir rootDir(root);
+        QStringList entries;
+        QDirIterator it(root, QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+                        QDirIterator::Subdirectories);
+
+        while (it.hasNext())
+        {
+            const QString path = it.next();
+            entries << rootDir.relativeFilePath(path) + (it.fileInfo().isDir() ? QStringLiteral("/") : QString());
+        }
+
+        entries.sort();
+        return entries;
+    }
 } // namespace
 
 TEST_CASE("Mini export converts to the expected output", "[e2e]")
@@ -91,6 +109,11 @@ TEST_CASE("Mini export converts to the expected output", "[e2e]")
     INFO(toStd(comparison.describe()));
     CHECK(comparison.identical());
 
-    // The committed fixture must stay untouched (the converter only ever saw the copy).
-    CHECK_FALSE(QFileInfo::exists(fixtureDir + QStringLiteral("/trile sets/exported")));
+    // The input tree is untouched: same files with the same bytes, and no new (possibly empty) directories such as the
+    // "trile sets/exported/" folder the converter used to create.
+    const fez::testing::TreeComparison inputComparison = fez::testing::compareTrees(fixtureDir, inputDir.path());
+    INFO(toStd(inputComparison.describe()));
+    CHECK(inputComparison.identical());
+    CHECK(toStd(listEntries(inputDir.path()).join(QLatin1Char('\n'))) ==
+          toStd(listEntries(fixtureDir).join(QLatin1Char('\n'))));
 }

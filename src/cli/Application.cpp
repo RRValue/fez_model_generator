@@ -97,15 +97,16 @@ void Application::processTrileSets(const QString& input_path, const QString& out
         trile_set_files.push_back(ts_xml_iter.next());
 
     const auto export_function = [](const auto& file, const auto& path) -> void {
-        fez::TrileSetParser parser;
-        const auto result = parser.parse(file);
-        const auto& set_name = parser.getSetName();
+        const auto trile_set = fez::parseTrileSet(file);
 
-        for(const auto& r : result)
+        if(!trile_set)
+            return;
+
+        for(const auto& r : trile_set->m_Triles)
         {
             qDebug() << "Write: " << r.second.m_Name;
 
-            fez::GeometryWriter(path + "/ts_export/" + set_name).writeObj(r.second);
+            fez::GeometryWriter(path + "/ts_export/" + trile_set->m_Name).writeObj(r.second);
         }
     };
 

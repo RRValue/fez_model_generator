@@ -399,15 +399,15 @@ LevelParser::TrileGeometriesResult LevelParser::parseTrileEmplacements(const Lev
         if(!QFile(trile_set_path).exists())
             return {};
 
-        TrileSetParser parser;
-        const auto triles_set = parser.parse(trile_set_path);
+        auto triles_set = parseTrileSet(trile_set_path);
 
-        if(triles_set.empty())
+        // a failed set and a set without triles both fail the level (not cached, as before)
+        if(!triles_set || triles_set->m_Triles.empty())
             return {};
 
-        sm_TrileSetCache.insert({trileSetName, triles_set});
+        sm_TrileSetCache.insert({trileSetName, triles_set->m_Triles});
 
-        return triles_set;
+        return std::move(triles_set->m_Triles);
     }();
 
     if(trile_set.empty())

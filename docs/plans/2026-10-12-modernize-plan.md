@@ -671,12 +671,40 @@ site keeps the integer division `float(width / 16)` (fixed in Task 28).
 creation in the input directory is removed.
 
 **Acceptance criteria:**
-- [ ] Fixture tests: two triles with keys and names → geometry names `<key>_<name>`, texture name `<set>.png`;
+- [x] Fixture tests: two triles with keys and names → geometry names `<key>_<name>`, texture name `<set>.png`;
       invalid key → `BadValue`.
-- [ ] Running the converter no longer creates `exported/` in the input tree.
+- [x] Running the converter no longer creates `exported/` in the input tree.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[parser]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[parser]"`; golden passes.
+
+**Implementation notes (fez_mode-777.16):**
+- `parser/TrileSetParser.{h,cpp}`: the `TrileSetParser` class (`QDomDocument` member, `getSetName()`, the
+  `exported/<set name>/` directories created next to the XML) is replaced by
+  `struct TrileSet { QString m_Name; std::map<int, Geometry> m_Triles; }` (in the parser header; it is a parser result,
+  not one of the spec's `model/` types) and `parseTrileSet(path) -> std::expected<TrileSet, Error>`: `loadXml`, then
+  `firstChildElement("TrileSet")` (`MissingElement`, source `TrileSet`), set `name` (`MissingAttribute`), `Triles`
+  (`MissingElement`), and per entry: `key` present, `Trile` child, `key` as int (`attribute<int>`, `BadValue`), trile
+  `name`, `Geometry`, `ShaderInstancedIndexedPrimitives` (`MissingElement`; the old code passed the null element to
+  `parseGeometry`, which also failed), `parseGeometry`. The `parsing:`, `\t: <key>` and XML syntax `qDebug` lines are kept.
+- **Kept odd behavior:** after the first `TrileEntry` every following sibling element is parsed as an entry whatever
+  its name (old `nextSiblingElement()` without a name); duplicate keys keep the first entry (`map::insert`); the
+  geometry name uses the key text as written; texture name `<set name>.png` but texture file `<file base name>.png`;
+  an empty `Triles` element is a successful set without triles. Any failing entry fails the whole set. Tests pin all of it.
+- Callers: `Application::processTrileSets` skips a failed set (as before, nothing is written); `LevelParser` treats a
+  failed set and a set without triles as failure of the level and caches neither (as before). This removes the second
+  `setContent` C4996 warning (one remains in `LevelParser`).
+- `tests/unit/TrileSetParserTests.cpp` (`[parser]`): 9 test cases (fixtures `tests/data/parser/trileset_valid.xml`,
+  `trileset_invalid_key.xml`; the rest via `QTemporaryDir`), including one that the directory of the XML holds
+  nothing new after parsing. Written first and seen failing to compile.
+- Input tree untouched: `tests/e2e/MiniExportTests.cpp` keeps the temporary input copy (isolation) and now checks after
+  the run that the copy still equals the fixture, files by `compareTrees` and every directory by path (an empty
+  `exported/` would be invisible to `compareTrees`); seen failing before the fix. `tests/golden/GoldenTests.cpp` no
+  longer deletes `trile sets/exported`; it snapshots the input tree (path, size, modification time of every file and
+  directory) before and after the run and requires both to be equal.
+- Checks: Debug and Release build (no new warnings); `fez_tests.exe "[parser]"` 23 test cases / 189 assertions;
+  `ctest --preset windows-debug` and `windows-release` 82/82; `ctest --preset windows-release-golden` passed against
+  `golden/v1` (515 s).
 
 **Dependencies:** Task 14
 
@@ -1071,7 +1099,7 @@ policy decided in Open Questions.
 | `QFile::copy` no-overwrite hides stale textures | Medium | Fresh temp dirs in all tests; policy revisited in Task 32. |
 | Blocking on `shared_future` inside `QThreadPool` workers reduces parallelism | Low | Loads run on the requesting thread (no deadlock); only waiting threads idle briefly. |
 | NPC textures are named `<npc>/<action>.ani.png`, so their copy destination has a nested directory that `Writer::save` creates with `QDir::mkdir(".")`; these copies may fail silently today | Medium | Phase 1 reproduces the behavior unchanged (golden decides). Task 32 surfaces the failures; fixing them adds files to `lv_export/` and therefore requires a new golden version. |
-| `exported/` side effect in the input tree (until Task 16) | Low | Golden and mini tests never use a committed or reference directory as `--input` directly (Task 7 copies the fixture); comparisons only cover the output root. |
+| `exported/` side effect in the input tree (until Task 16) | Low | Golden and mini tests never use a committed or reference directory as `--input` directly (Task 7 copies the fixture); comparisons only cover the output root. Resolved by Task 16; both tests now assert the input stays untouched. |
 
 ## Open Questions
 
@@ -1099,9 +1127,11 @@ policy decided in Open Questions.
   `character animations`, `levels` and only the top-level files of `trile sets` (no `exported/` subfolder), copied
   from `Z:/fez_data/export` (2834 files, hash-identical to the original). The original export is never used as
   `--input`.
-- **Pristine-input rule:** every run writes `trile sets/exported/` into its input tree (until Task 16). Delete
-  `Z:/fez_data/golden/input/trile sets/exported` before each run so all runs start from the same input, and delete it
-  again after use; the rest of the input stays unchanged (verified by hash before each Task 3 run).
+- **Pristine-input rule:** until Task 16 every run wrote `trile sets/exported/` into its input tree, so
+  `Z:/fez_data/golden/input/trile sets/exported` had to be deleted before and after each run (the golden test did
+  that). Since Task 16 (fez_mode-777.16) the converter writes nothing into its input; the golden test no longer deletes
+  anything and instead fails if the input tree (paths, sizes, modification times) changes during the run. Binaries
+  built before Task 16 must still not be run on the golden input without deleting `exported/` afterwards.
 - `CMakeUserPresets.json` (local) sets `FEZ_DATA_DIR` and `FEZ_GOLDEN_DIR` as cache variables on `windows-vs` and as
   `environment` on the `windows-debug`/`windows-release` test presets; `CMakeUserPresets.example.json` has
   placeholders.

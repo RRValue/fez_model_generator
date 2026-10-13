@@ -1,149 +1,126 @@
 #include "parser/TrileSetParser.h"
 
 #include "parser/GeometryParser.h"
+#include "xml/Xml.h"
 
-#include <QtCore/QDir>
-#include <QtCore/QFile>
 #include <QtCore/QFileInfo>
+
+#include <qdebug.h>
+
+#include <utility>
 
 namespace fez
 {
 
-TrileSetParser::TrileSetParser() : m_Document{}
+namespace
 {
+
+struct TrileFiles
+{
+    QString m_SetName;
+    QString m_OrgPath;
+    QString m_BaseName;
+};
+
+std::expected<std::pair<int, Geometry>, Error> parseTrile(const QDomElement& entry_elem, const TrileFiles& files)
+{
+    const auto key_str = attribute<QString>(entry_elem, "key");
+
+    if(!key_str)
+        return std::unexpected(key_str.error());
+
+    const auto trile_elem = childElement(entry_elem, "Trile");
+
+    qDebug() << "\t: " << *key_str;
+
+    if(!trile_elem)
+        return std::unexpected(trile_elem.error());
+
+    const auto key = attribute<int>(entry_elem, "key");
+
+    if(!key)
+        return std::unexpected(key.error());
+
+    const auto name = attribute<QString>(*trile_elem, "name");
+
+    if(!name)
+        return std::unexpected(name.error());
+
+    const auto geom_elem = childElement(*trile_elem, "Geometry");
+
+    if(!geom_elem)
+        return std::unexpected(geom_elem.error());
+
+    const auto primitives_elem = childElement(*geom_elem, "ShaderInstancedIndexedPrimitives");
+
+    if(!primitives_elem)
+        return std::unexpected(primitives_elem.error());
+
+    auto geometry = parseGeometry(*primitives_elem);
+
+    if(!geometry)
+        return std::unexpected(geometry.error());
+
+    geometry->m_Name = *key_str + "_" + *name;
+    geometry->m_Texture.m_TextureName = files.m_SetName + ".png";
+    geometry->m_Texture.m_TextureOrgFile = files.m_OrgPath + "/" + files.m_BaseName + ".png";
+
+    return std::make_pair(*key, std::move(*geometry));
 }
 
-TrileSetParser::~TrileSetParser()
-{
-}
+} // namespace
 
-const QString& TrileSetParser::getSetName() const noexcept
-{
-    return m_SetName;
-}
-
-TrileSetParser::GeometryResults TrileSetParser::parse(const QString& path) noexcept
+std::expected<TrileSet, Error> parseTrileSet(const QString& path)
 {
     qDebug() << "parsing: " << path;
 
-    QFileInfo info(path);
+    const QFileInfo info(path);
 
-    if(!info.exists())
-        return {};
+    const auto document = loadXml(path);
 
-    static const auto out_folder_name = "exported";
-
-    m_Name = info.baseName();
-    m_OrgPath = info.absolutePath();
-    m_OutPath = info.absolutePath();
-    m_Document.clear();
-
-    QDir dir(m_OutPath);
-
-    if(!dir.exists(out_folder_name))
-        dir.mkdir(out_folder_name);
-
-    m_OutPath = m_OutPath + "/" + out_folder_name;
-
-    // load
-    auto xml_file = QFile(path);
-
-    if(!xml_file.exists())
-        return {};
-
-    if(!xml_file.open(QIODevice::OpenModeFlag::ReadOnly))
-        return {};
-
-    QString error_msg;
-    int error_line;
-    int error_column;
-
-    if(!m_Document.setContent(&xml_file, &error_msg, &error_line, &error_column))
+    if(!document)
     {
-        qDebug() << "Error: \"" + error_msg + "\" at line: " + QString::number(error_line) + " Columns: " + QString::number(error_column);
+        if(document.error().kind == ErrorKind::XmlSyntax)
+            qDebug() << "Error: \"" + QString::fromStdString(document.error().message) + "\" at " + QString::fromStdString(document.error().source);
 
-        return {};
+        return std::unexpected(document.error());
     }
 
-    // parse
-    const auto trile_set_elem = m_Document.firstChildElement("TrileSet");
+    // QDomDocument::firstChildElement: the document element, if it is named TrileSet
+    const auto trile_set_elem = document->firstChildElement("TrileSet");
 
     if(trile_set_elem.isNull())
-        return {};
+        return std::unexpected(Error{ErrorKind::MissingElement, "missing element 'TrileSet'", "TrileSet"});
 
-    if(!trile_set_elem.hasAttribute("name"))
-        return {};
+    const auto set_name = attribute<QString>(trile_set_elem, "name");
 
-    m_SetName = trile_set_elem.attribute("name");
+    if(!set_name)
+        return std::unexpected(set_name.error());
 
-    QDir set_dir(m_OutPath);
+    const auto triles_elem = childElement(trile_set_elem, "Triles");
 
-    if(!set_dir.exists(m_SetName))
-        set_dir.mkdir(m_SetName);
+    if(!triles_elem)
+        return std::unexpected(triles_elem.error());
 
-    const auto triles_elem = trile_set_elem.firstChildElement("Triles");
+    const TrileFiles files{*set_name, info.absolutePath(), info.baseName()};
 
-    if(triles_elem.isNull())
-        return {};
+    TrileSet result;
+    result.m_Name = *set_name;
 
-    // read trile entries
-    auto trile_entry_elem = triles_elem.firstChildElement("TrileEntry");
+    // From the first TrileEntry on, every following sibling element is an entry (no name filter, as before).
+    const auto first_entry = triles_elem->firstChildElement("TrileEntry");
 
-    GeometryResults results;
-
-    while(!trile_entry_elem.isNull())
+    for(auto iter = ChildElementRange::Iterator(first_entry, QString()); iter != ChildElementRange::Iterator(); ++iter)
     {
-        auto result = parserTrile(trile_entry_elem);
+        auto trile = parseTrile(*iter, files);
 
-        if(!result)
-            return {};
+        if(!trile)
+            return std::unexpected(trile.error());
 
-        results.insert(std::move(*result));
-        trile_entry_elem = trile_entry_elem.nextSiblingElement();
+        result.m_Triles.insert(std::move(*trile));
     }
 
-    return results;
-}
-
-TrileSetParser::TrileResult TrileSetParser::parserTrile(const QDomElement& elem)
-{
-    if(!elem.hasAttribute("key"))
-        return {};
-
-    const auto key_str = elem.attribute("key");
-    const auto trile_elem = elem.firstChildElement("Trile");
-
-    qDebug() << "\t: " << key_str;
-
-    if(trile_elem.isNull())
-        return {};
-
-    auto key_ok = false;
-    const auto key = key_str.toInt(&key_ok);
-
-    if(!key_ok)
-        return {};
-
-    if(!trile_elem.hasAttribute("name"))
-        return {};
-
-    const auto name = trile_elem.attribute("name");
-
-    const auto geom_elem = trile_elem.firstChildElement("Geometry");
-
-    if(geom_elem.isNull())
-        return {};
-
-    auto geometry = parseGeometry(geom_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
-
-    if(!geometry)
-        return {};
-
-    geometry->m_Name = key_str + "_" + name;
-    geometry->m_Texture.m_TextureName = m_SetName + ".png";
-    geometry->m_Texture.m_TextureOrgFile = m_OrgPath + "/" + m_Name + ".png";
-
-    return std::make_pair(key, *geometry);
+    return result;
 }
 
 } // namespace fez
