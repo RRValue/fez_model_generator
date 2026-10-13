@@ -760,7 +760,7 @@ the PNG; animated textures parse `AnimatedTexturePC` frames into normalized `Ani
 - [x] Default + golden tests pass; `[parser]` tests cover every format. (Asset formats: geometry, art object, trile
       set, static PNG, `AnimatedTexturePC`. The level XML is read by `LevelParser` until Tasks 18–19 and is covered only
       by the mini end-to-end and golden tests so far.)
-- [ ] Human review.
+- [x] Human review.
 
 ### Task 18: Level reading – header, triles, art objects
 
