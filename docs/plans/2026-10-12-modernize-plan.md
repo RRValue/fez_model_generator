@@ -175,11 +175,11 @@ root instead of the input root. Qt Widgets and the dialog are removed.
 deterministic.
 
 **Acceptance criteria:**
-- [ ] `Z:/fez_data/golden/v1` (or the chosen location) contains `ao_export/`, `ts_export/`, `lv_export/` produced by
+- [x] `Z:/fez_data/golden/v1` (or the chosen location) contains `ao_export/`, `ts_export/`, `lv_export/` produced by
       `--input <FEZ export> --output <fresh dir>`.
 - [ ] A second run into another fresh dir is byte-identical to the first (`fc /b` or a recursive hash compare);
-      any difference is investigated before continuing.
-- [ ] `CMakeUserPresets.json` sets `FEZ_DATA_DIR` and `FEZ_GOLDEN_DIR`; the file counts per subfolder are noted in
+      any difference is investigated before continuing. *(Investigated: Release is not deterministic, see "Notes".)*
+- [x] `CMakeUserPresets.json` sets `FEZ_DATA_DIR` and `FEZ_GOLDEN_DIR`; the file counts per subfolder are noted in
       this plan under "Notes".
 
 **Verification:**
@@ -874,4 +874,36 @@ policy decided in Open Questions.
 
 ## Notes
 
-- Golden reference file counts (fill in at Task 3): `ao_export` = …, `ts_export` = …, `lv_export` = ….
+- Golden reference file counts (Task 3): `ao_export` = 1623, `ts_export` = 4737, `lv_export` = 2687 (156 level
+  folders, each with one `.obj`). Identical in both Release runs and equal to the Task 2 Debug counts.
+- **Golden location (Task 3):** `Z:/fez_data/golden/v1` (`ao_export/`, `ts_export/`, `lv_export/`), produced by the
+  Release binary `build/windows-vs/bin/Release/FezModelGenerator.exe --input Z:/fez_data/golden/input --output
+  Z:/fez_data/golden/v1` (fresh dir). Runtime: 544 s (run A), 536 s (run B), against ~56 min per Debug run.
+- **Input copy (`FEZ_DATA_DIR`):** `Z:/fez_data/golden/input` holds `art objects`, `background planes`,
+  `character animations`, `levels` and only the top-level files of `trile sets` (no `exported/` subfolder), copied
+  from `Z:/fez_data/export`. The original export is never used as `--input`.
+- **Pristine-input rule:** every run writes `trile sets/exported/` into its input tree (until Task 16). Delete
+  `Z:/fez_data/golden/input/trile sets/exported` before each run so all runs start from the same input; it is
+  deleted again after use.
+- `CMakeUserPresets.json` (local) sets `FEZ_DATA_DIR` and `FEZ_GOLDEN_DIR` as cache variables on `windows-vs` and as
+  `environment` on the `windows-debug`/`windows-release` test presets; `CMakeUserPresets.example.json` has
+  placeholders.
+- **Determinism result (Task 3): FAILED for the Release build.** SHA-256 over all files, run A (`v1`) against run B:
+  9047 / 9047 files, 0 missing, 0 extra, **111 differing**, all `lv_export/<LEVEL>/<LEVEL>.obj`. All `ao_export/`,
+  `ts_export/`, textures and `.mtl` files are identical. Only `v` lines differ in value (`f`/`g`/`usemtl` lines move
+  because the OBJ exporter renumbers deduplicated vertices); `vt`/`vn` lines are identical.
+  - Affected geometry: **background planes only** (NPC quads are correct). In Release their four corners collapse to
+    one point and the coordinates are garbage that changes between runs (e.g. `-2.17e+32`, `-16857076`).
+  - Root cause: undefined behavior in `LevelParser::parseBackgroundPlanes` (`source/parser/LevelParser.cpp`):
+    `const auto p0 = Vec3f{...} + move_out_vec;` (also `p1`..`p3`) makes `auto` deduce an Eigen expression template
+    that keeps a reference to the temporary `Vec3f`, which is destroyed at the end of the statement. The same
+    pattern exists for `texture_coord_s` in `parseBackgroundPlanes` and `parseCharacters` (UVs happened to come out
+    stable).
+  - Evidence on a two-level subset (`arch.xml`, `extractor_a.xml`): two Debug runs are byte-identical; two Release
+    runs differ; Debug against Release differs in both level OBJs. Debug produces proper quads. A local, uncommitted
+    experiment that gives these variables explicit types (`const Vec3f` / `const Vec2f`) makes two Release runs
+    byte-identical and byte-identical to Debug (0 differences). The experiment was reverted.
+  - Consequence: `Z:/fez_data/golden/v1` (Release run A) contains non-deterministic background plane vertices in
+    111 level OBJs and **must not be used as the reference** as is. Decision needed: regenerate `v1` with the Debug
+    binary (deterministic, matches the Task 2 anchor, ~56 min per run), or fix the UB first (Release then equals
+    Debug) and regenerate.

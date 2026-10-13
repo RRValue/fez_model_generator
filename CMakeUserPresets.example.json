@@ -7,7 +7,9 @@
       "inherits": "windows-vs-base",
       "cacheVariables": {
         "VCPKG_FEZ_MODEL_BASE": "C:/path/to/vcpkg",
-        "CMAKE_PREFIX_PATH": "C:/Qt/6.x.y/msvc2022_64"
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.x.y/msvc2022_64",
+        "FEZ_DATA_DIR": "C:/path/to/fez/export-copy",
+        "FEZ_GOLDEN_DIR": "C:/path/to/fez/golden/v1"
       }
     }
   ],
@@ -16,7 +18,13 @@
     { "name": "windows-release", "inherits": "windows-release-base", "configurePreset": "windows-vs" }
   ],
   "testPresets": [
-    { "name": "windows-debug", "inherits": "windows-debug-base", "configurePreset": "windows-vs" },
-    { "name": "windows-release", "inherits": "windows-release-base", "configurePreset": "windows-vs" }
+    {
+      "name": "windows-debug", "inherits": "windows-debug-base", "configurePreset": "windows-vs",
+      "environment": { "FEZ_DATA_DIR": "C:/path/to/fez/export-copy", "FEZ_GOLDEN_DIR": "C:/path/to/fez/golden/v1" }
+    },
+    {
+      "name": "windows-release", "inherits": "windows-release-base", "configurePreset": "windows-vs",
+      "environment": { "FEZ_DATA_DIR": "C:/path/to/fez/export-copy", "FEZ_GOLDEN_DIR": "C:/path/to/fez/golden/v1" }
+    }
   ]
 }
