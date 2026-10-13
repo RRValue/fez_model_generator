@@ -1,0 +1,89 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Level name="FIXTURE LEVEL" trileSetName="Fixture Set">
+  <Size>
+    <Vector3 x="4.0" y="4.0" z="4.0"/>
+  </Size>
+  <Triles>
+    <Entry>
+      <TrileEmplacement x="1" y="2" z="3"/>
+      <TrileInstance trileId="7" orientation="2">
+        <Position>
+          <Vector3 x="1.5" y="2.25" z="-3.0"/>
+        </Position>
+      </TrileInstance>
+    </Entry>
+    <Entry>
+      <TrileEmplacement x="0" y="0" z="0"/>
+      <TrileInstance trileId="-1" orientation="0">
+        <Position>
+          <Vector3 x="0.0" y="0.0" z="0.0"/>
+        </Position>
+      </TrileInstance>
+    </Entry>
+    <Entry>
+      <TrileEmplacement x="-4" y="5" z="6"/>
+      <TrileInstance trileId="3.9" orientation="1.5">
+        <Position>
+          <Vector3 x="-4.0" y="5.0" z="6.5"/>
+        </Position>
+      </TrileInstance>
+    </Entry>
+  </Triles>
+  <ArtObjects>
+    <Entry key="0">
+      <ArtObjectInstance name="fixture_ao">
+        <Position>
+          <Vector3 x="1.5" y="1.5" z="0.5"/>
+        </Position>
+        <Rotation>
+          <Quaternion x="0.1" y="0.2" z="0.3" w="0.9"/>
+        </Rotation>
+        <Scale>
+          <Vector3 x="1.0" y="2.0" z="0.5"/>
+        </Scale>
+      </ArtObjectInstance>
+    </Entry>
+    <Entry key="1">
+      <ArtObjectInstance name="second ao">
+        <Position>
+          <Vector3 x="-2.0" y="0.0" z="8.0"/>
+        </Position>
+        <Rotation>
+          <Quaternion x="0.0" y="0.0" z="0.0" w="1.0"/>
+        </Rotation>
+        <Scale>
+          <Vector3 x="1.0" y="1.0" z="1.0"/>
+        </Scale>
+      </ArtObjectInstance>
+    </Entry>
+  </ArtObjects>
+  <BackgroundPlanes>
+    <Entry key="0">
+      <BackgroundPlane textureName="fixture_plane" animated="False" doubleSided="True" opacity="1.0">
+        <Position>
+          <Vector3 x="0.5" y="1.5" z="-0.5"/>
+        </Position>
+        <Rotation>
+          <Quaternion x="0.0" y="0.0" z="0.0" w="1.0"/>
+        </Rotation>
+        <Scale>
+          <Vector3 x="1.0" y="1.0" z="1.0"/>
+        </Scale>
+      </BackgroundPlane>
+    </Entry>
+  </BackgroundPlanes>
+  <NonplayerCharacters>
+    <Entry key="0">
+      <NpcInstance name="fixture_npc">
+        <Position>
+          <Vector3 x="0.0" y="1.5" z="1.0"/>
+        </Position>
+        <Actions>
+          <Action key="Idle">
+            <NpcActionContent animationName="idle"/>
+          </Action>
+        </Actions>
+      </NpcInstance>
+    </Entry>
+  </NonplayerCharacters>
+</Level>

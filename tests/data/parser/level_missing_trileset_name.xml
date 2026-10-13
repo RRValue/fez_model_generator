@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Level name="NO SET">
+  <Triles>
+    <Entry>
+      <TrileEmplacement x="0" y="0" z="0"/>
+      <TrileInstance trileId="0" orientation="0">
+        <Position>
+          <Vector3 x="0.0" y="0.0" z="0.0"/>
+        </Position>
+      </TrileInstance>
+    </Entry>
+  </Triles>
+  <ArtObjects/>
+  <BackgroundPlanes/>
+  <NonplayerCharacters/>
+</Level>

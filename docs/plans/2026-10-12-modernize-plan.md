@@ -769,15 +769,47 @@ NPC descriptors) and `parseLevel(path) -> std::expected<LevelDescription, Error>
 `ArtObjects` sections in their own files. `LevelParser` calls it instead of its own `read*` functions for those parts.
 
 **Acceptance criteria:**
-- [ ] Fixture tests for the trile and AO sections incl. quaternion order (w,x,y,z) and missing `trileSetName`.
-- [ ] Failure conditions preserved: a missing `Triles` or `ArtObjects` element, a missing `Entry` child
+- [x] Fixture tests for the trile and AO sections incl. quaternion order (w,x,y,z) and missing `trileSetName`.
+- [x] Failure conditions preserved: a missing `Triles` or `ArtObjects` element, a missing `Entry` child
       (`TrileEmplacement`, `TrileInstance`, `Position/Vector3`, `ArtObjectInstance`, `Rotation/Quaternion`,
       `Scale/Vector3`) or any unparsable attribute fails the whole level, exactly as `LevelParser` does today. Tests
       assert the error for each; no section may become optional.
-- [ ] `readTrileEmplacements`/`readArtObjects` removed from `LevelParser`.
+- [x] `readTrileEmplacements`/`readArtObjects` removed from `LevelParser`.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[level]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[level]"`; golden passes.
+
+**Implementation notes (fez_mode-777.18):**
+- `model/LevelDescription.h`: `LevelDescription { m_Name, m_TrileSetName, m_TrileEmplacements (vector<TrileEmplacement>),
+  m_ArtObjects (vector<ArtObject>), m_BackgroundPlanes (vector<BackgroundPlaneDescription>), m_Npcs
+  (vector<NpcDescription>) }`. `BackgroundPlaneDescription` (texture name, animated, opacity, doubleSided, position,
+  rotation, scale) and `NpcDescription` (name, actions as key/animation-name pairs, position) are declared now but
+  stay empty until Task 19 reads them (Task 19 may adjust them).
+- `parser/level/LevelReader.{h,cpp}`: `parseLevel(path)` (`loadXml`, `parsing:` and XML syntax `qDebug` lines like the
+  other parsers) and **`readLevel(const QDomDocument&)`** (addition): header (`firstChildElement("Level")`,
+  `MissingElement` source `Level`; then `trileSetName`, then `name`, `MissingAttribute`), then Triles, then ArtObjects.
+  `parser/level/LevelSections.h` (internal, namespace `fez::level`) declares `readTriles` (`TrileSection.cpp`) and
+  `readArtObjects` (`ArtObjectSection.cpp`), built on `childElement`, `attribute<T>`, `readVector3`, `readQuaternion`.
+- **Deviation – LevelParser calls `readLevel`, not `parseLevel(path)`:** until Task 19 `LevelParser` still reads
+  `BackgroundPlanes`/`NonplayerCharacters` from the DOM itself, so it loads the document once with `loadXml` and passes
+  it to `readLevel` (no second parse). Task 19 can switch it to `parseLevel(path)` (and drop its own `parsing:` line)
+  once those sections are in `LevelDescription`. `LevelParser`'s `m_Document` member and its `setContent` call are gone
+  (this removes the last `setContent` C4996 warning); its XML syntax `qDebug` line now prints the `loadXml` source
+  (`<path>:<line>:<column>`) instead of `line: … Columns: …`.
+- **Kept behavior:** both sections are mandatory; any missing element (`TrileEmplacement`, `TrileInstance`,
+  `Position/Vector3`, `ArtObjectInstance`, `Rotation/Quaternion`, `Scale/Vector3`), missing attribute or number that
+  `toFloat` rejects fails the level. `trileId`/`orientation` are read with `toFloat` and converted to `int`/`unsigned`
+  (`3.9` → 3; `-1` kept, still skipped by `parseTrileEmplacements`). Entries start at the first `Entry` and then every
+  following sibling element is an entry whatever its name; earlier elements are skipped. Empty sections give empty
+  vectors. Only the order of work changed: the ArtObjects section is now read before the trile set is loaded (both
+  still fail the level; no effect on output).
+- `tests/unit/LevelReaderTests.cpp` (`[level]`): 12 test cases / 177 assertions (fixtures
+  `tests/data/parser/level_valid.xml`, `level_missing_trileset_name.xml`; failure tables inline via `parseXml` +
+  `readLevel`, asserting `ErrorKind` and element path for every missing element/attribute and bad number), written
+  first and seen failing to compile. `tests/unit/model_headers/LevelDescriptionHeader.cpp` checks the new header is
+  self-contained.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[level]"` passed; `ctest --preset windows-debug` and
+  `windows-release` 112/112; `ctest --preset windows-release-golden` passed against `golden/v1` (490 s).
 
 **Dependencies:** Tasks 15, 16, 17
 

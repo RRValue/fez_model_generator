@@ -18,11 +18,13 @@ add_executable(fez_tests
     unit/ArtObjectParserTests.cpp
     unit/TrileSetParserTests.cpp
     unit/TextureParserTests.cpp
+    unit/LevelReaderTests.cpp
     unit/model_headers/ArtObjectHeader.cpp
     unit/model_headers/BackgroundPlaneHeader.cpp
     unit/model_headers/CharacterHeader.cpp
     unit/model_headers/GeometryHeader.cpp
     unit/model_headers/LevelHeader.cpp
+    unit/model_headers/LevelDescriptionHeader.cpp
     unit/model_headers/TrileEmplacementHeader.cpp
     unit/model_headers/VertexHeader.cpp
     e2e/MiniExportTests.cpp
@@ -34,9 +36,11 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX tests
           unit/SupportTests.cpp unit/TreeCompareTests.cpp unit/ModelHeaderTests.cpp unit/XmlTests.cpp
           unit/FaceDecodingTests.cpp unit/TexturedQuadTests.cpp unit/ImageTests.cpp unit/GeometryParserTests.cpp
           unit/ArtObjectParserTests.cpp unit/TrileSetParserTests.cpp unit/TextureParserTests.cpp
+          unit/LevelReaderTests.cpp
           unit/model_headers/ArtObjectHeader.cpp unit/model_headers/BackgroundPlaneHeader.cpp
           unit/model_headers/CharacterHeader.cpp unit/model_headers/GeometryHeader.cpp
-          unit/model_headers/LevelHeader.cpp unit/model_headers/TrileEmplacementHeader.cpp
+          unit/model_headers/LevelHeader.cpp unit/model_headers/LevelDescriptionHeader.cpp
+          unit/model_headers/TrileEmplacementHeader.cpp
           unit/model_headers/VertexHeader.cpp
           e2e/MiniExportTests.cpp golden/GoldenTests.cpp)
 

@@ -17,6 +17,7 @@ set(FEZ_CORE_SOURCES
     model/Character.h
     model/Geometry.h
     model/Level.h
+    model/LevelDescription.h
     model/Texture.h
     model/TrileEmplacement.h
     model/Vertex.h
@@ -26,6 +27,11 @@ set(FEZ_CORE_SOURCES
     parser/GeometryParser.h
     parser/LevelParser.cpp
     parser/LevelParser.h
+    parser/level/ArtObjectSection.cpp
+    parser/level/LevelReader.cpp
+    parser/level/LevelReader.h
+    parser/level/LevelSections.h
+    parser/level/TrileSection.cpp
     parser/TextureParser.cpp
     parser/TextureParser.h
     parser/TrileSetParser.cpp
