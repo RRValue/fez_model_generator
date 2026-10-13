@@ -286,9 +286,9 @@ Because this test is registered by hand, it does not receive the `DL_PATHS` of `
 **Estimated scope:** S
 
 ### Checkpoint: Phase 0
-- [ ] Clean configure + build from scratch with only the user preset (which sets `VCPKG_FEZ_MODEL_BASE`) and no
+- [x] Clean configure + build from scratch with only the user preset (which sets `VCPKG_FEZ_MODEL_BASE`) and no
       `VCPKG_ROOT` in the environment.
-- [ ] Default tests and golden test pass.
+- [x] Default tests and golden test pass.
 - [ ] Review with human before restructuring.
 
 ---
