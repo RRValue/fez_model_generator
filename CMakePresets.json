@@ -1,0 +1,29 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "windows-vs-base",
+      "hidden": true,
+      "displayName": "Windows (Visual Studio 18 2026, x64)",
+      "description": "Multi-config build into build/windows-vs. The visible 'windows-vs' preset lives in CMakeUserPresets.json and adds VCPKG_FEZ_MODEL_BASE and the Qt path (see CMakeUserPresets.example.json).",
+      "generator": "Visual Studio 18 2026",
+      "architecture": { "value": "x64", "strategy": "set" },
+      "binaryDir": "${sourceDir}/build/windows-vs",
+      "cacheVariables": {
+        "VCPKG_MANIFEST_MODE": "OFF",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
+      },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "windows-debug-base", "hidden": true, "configuration": "Debug" },
+    { "name": "windows-release-base", "hidden": true, "configuration": "Release" }
+  ],
+  "testPresets": [
+    { "name": "windows-debug-base", "hidden": true, "configuration": "Debug", "output": { "outputOnFailure": true } },
+    { "name": "windows-release-base", "hidden": true, "configuration": "Release", "output": { "outputOnFailure": true } }
+  ]
+}

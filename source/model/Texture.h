@@ -1,9 +1,10 @@
 #pragma once
 
-#include "model/Vertex.h"
+#include "math/Vector.h"
 
 #include <QtCore/QString>
 
+#include <tuple>
 #include <vector>
 
 struct Texture

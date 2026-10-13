@@ -6,6 +6,11 @@
 #include "model/BackgroundPlane.h"
 #include "model/Character.h"
 
+#include <QtCore/QString>
+
+#include <map>
+#include <vector>
+
 struct Level
 {
     using TrileEmplacements = std::vector<TrileEmplacement>;

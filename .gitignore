@@ -64,3 +64,7 @@
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+# Local CMake presets (copy CMakeUserPresets.example.json) and build trees
+CMakeUserPresets.json
+build/

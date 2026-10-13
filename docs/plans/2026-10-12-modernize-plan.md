@@ -93,26 +93,36 @@ Phase 2:  T28 … T33 (independent of each other, each depends on T27)
 the VS 18 generator, switch to C++26, and fix only what `/std:c++latest` needs to compile. No behavior change.
 
 **Acceptance criteria:**
-- [ ] `cmake_minimum_required(VERSION 3.25)` (presets with `$env{}`, `catch_discover_tests(... DL_PATHS)` and
+- [x] `cmake_minimum_required(VERSION 3.25)` (presets with `$env{}`, `catch_discover_tests(... DL_PATHS)` and
       `qt_generate_deploy_app_script` all need newer than the current 3.16).
-- [ ] `CMakeLists.txt` uses `find_package(assimp CONFIG REQUIRED)`, `find_package(Eigen3 CONFIG REQUIRED)`,
+- [x] `CMakeLists.txt` uses `find_package(assimp CONFIG REQUIRED)`, `find_package(Eigen3 CONFIG REQUIRED)`,
       `find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Xml Concurrent)` (Widgets until Task 2),
       `CMAKE_CXX_STANDARD 26`; no `RVDep`, no hard-coded `.lib`/`.dll` names, no `FILE(INSTALL …)`, no `bin/` in the
       source tree; missing dependencies fail configuration with `FATAL_ERROR`.
-- [ ] `CMakePresets.json` (configure `windows-vs`, build/test `windows-debug`, `windows-release`), no
+- [x] `CMakePresets.json` (configure `windows-vs`, build/test `windows-debug`, `windows-release`), no
       toolchain path in the committed presets, `VCPKG_MANIFEST_MODE=OFF`, `VCPKG_TARGET_TRIPLET=x64-windows`;
       `CMakeUserPresets.example.json` (sets the cache variable `VCPKG_FEZ_MODEL_BASE`) committed, `CMakeUserPresets.json` and `build/` gitignored.
-- [ ] `cmake/CompilerWarnings.cmake` applies `/W4 /permissive- /utf-8 /Zc:__cplusplus`, with third-party headers
+- [x] `cmake/CompilerWarnings.cmake` applies `/W4 /permissive- /utf-8 /Zc:__cplusplus`, with third-party headers
       treated as external (`/external:W0`). Model headers include what they use; `M_PI` replaced by
       `std::numbers::pi_v<float>` (identical value in float).
-- [ ] Before `project()`, `CMakeLists.txt` fails with `FATAL_ERROR` when `VCPKG_FEZ_MODEL_BASE` is unset or has no
+- [x] Before `project()`, `CMakeLists.txt` fails with `FATAL_ERROR` when `VCPKG_FEZ_MODEL_BASE` is unset or has no
       `scripts/buildsystems/vcpkg.cmake`; otherwise it sets `VCPKG_ROOT` and `ENV{VCPKG_ROOT}` to it and
       `CMAKE_TOOLCHAIN_FILE` to `${VCPKG_FEZ_MODEL_BASE}/scripts/buildsystems/vcpkg.cmake`. Works with no
       `VCPKG_ROOT` in the environment.
 
 **Verification:**
-- [ ] `cmake --preset windows-vs` and `cmake --build --preset windows-debug` succeed from a clean `build/`.
+- [x] `cmake --preset windows-vs` and `cmake --build --preset windows-debug` succeed from a clean `build/`.
 - [ ] Manual: the program starts, shows the folder dialog, converts a small subset of the FEZ export.
+
+**Implementation notes (fez_mode-777.1):**
+- CMake does not let `CMakePresets.json` refer to presets from `CMakeUserPresets.json`, so the committed file holds
+  hidden bases (`windows-vs-base`, `windows-debug-base`, `windows-release-base`) and the visible `windows-vs`,
+  `windows-debug`, `windows-release` presets live in the user file (template: `CMakeUserPresets.example.json`).
+- CMake 4.4 has no C++26 flag for MSVC; `CMakeLists.txt` maps `CMAKE_CXX26_STANDARD_COMPILE_OPTION` to
+  `/std:c++latest` and forwards it to `try_compile` via `CMAKE_TRY_COMPILE_PLATFORM_VARIABLES`.
+- Build-tree Qt DLLs come from a post-build `windeployqt` into `build/windows-vs/bin/<Config>/` (replaced by the
+  install-time deploy in Task 27). Target name is still `FezModelGenerator` (renamed in Task 6).
+- Manual GUI conversion check not done headlessly; the exe was confirmed to start and load Qt/assimp DLLs.
 
 **Dependencies:** None
 

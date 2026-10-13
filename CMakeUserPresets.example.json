@@ -1,0 +1,22 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "windows-vs",
+      "displayName": "Windows (Visual Studio 18 2026, x64)",
+      "inherits": "windows-vs-base",
+      "cacheVariables": {
+        "VCPKG_FEZ_MODEL_BASE": "C:/path/to/vcpkg",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.x.y/msvc2022_64"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "windows-debug", "inherits": "windows-debug-base", "configurePreset": "windows-vs" },
+    { "name": "windows-release", "inherits": "windows-release-base", "configurePreset": "windows-vs" }
+  ],
+  "testPresets": [
+    { "name": "windows-debug", "inherits": "windows-debug-base", "configurePreset": "windows-vs" },
+    { "name": "windows-release", "inherits": "windows-release-base", "configurePreset": "windows-vs" }
+  ]
+}

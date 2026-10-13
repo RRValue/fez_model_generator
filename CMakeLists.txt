@@ -1,58 +1,108 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.16)
+cmake_minimum_required(VERSION 3.25)
 
-IF(NOT DEFINED ENV{Qt6_DIR})
-    MESSAGE(FATAL, "Qt6_DIR not found")
-ELSE()
-    SET(CMAKE_PREFIX_PATH $ENV{Qt6_DIR})
-ENDIF()
+# --- vcpkg (classic mode) -----------------------------------------------------
+# The vcpkg root is supplied through the cache variable VCPKG_FEZ_MODEL_BASE
+# (CMakeUserPresets.json or -DVCPKG_FEZ_MODEL_BASE=<path>). It must be resolved
+# before project() so the toolchain file takes effect.
+set(VCPKG_FEZ_MODEL_BASE "" CACHE PATH "Root of the vcpkg installation providing assimp, eigen3 and catch2")
 
-IF(NOT DEFINED ENV{RVDep})
-    MESSAGE(FATAL, "Deps not found")
-ELSE()
-    SET(DepDir $ENV{RVDep})
-ENDIF()
+if(NOT VCPKG_FEZ_MODEL_BASE)
+    message(FATAL_ERROR
+        "VCPKG_FEZ_MODEL_BASE is not set. Set it to your vcpkg root in CMakeUserPresets.json "
+        "(see CMakeUserPresets.example.json) or pass -DVCPKG_FEZ_MODEL_BASE=<path>.")
+endif()
 
-SET(PROJECT_GENERATED_INCLDUE_PATH ${CMAKE_CURRENT_BINARY_DIR}/generated)
-SET(PROJECT_BIN_PATH ${CMAKE_CURRENT_SOURCE_DIR}/bin)
-SET(PROJECT_SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/source)
+cmake_path(CONVERT "${VCPKG_FEZ_MODEL_BASE}" TO_CMAKE_PATH_LIST _fez_vcpkg_root NORMALIZE)
+set(_fez_vcpkg_toolchain "${_fez_vcpkg_root}/scripts/buildsystems/vcpkg.cmake")
 
-PROJECT(FezModelGenerator)
+if(NOT EXISTS "${_fez_vcpkg_toolchain}")
+    message(FATAL_ERROR
+        "VCPKG_FEZ_MODEL_BASE='${VCPKG_FEZ_MODEL_BASE}' is not a vcpkg root: "
+        "'${_fez_vcpkg_toolchain}' does not exist.")
+endif()
 
-# Set C++ Standard
-SET(CMAKE_CXX_STANDARD 20)
-SET(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(VCPKG_ROOT "${_fez_vcpkg_root}")
+set(ENV{VCPKG_ROOT} "${_fez_vcpkg_root}")
+set(CMAKE_TOOLCHAIN_FILE "${_fez_vcpkg_toolchain}" CACHE FILEPATH "vcpkg toolchain file" FORCE)
 
-FIND_PACKAGE(Qt6 REQUIRED COMPONENTS Core Widgets Xml)
+project(FezModelGenerator LANGUAGES CXX)
 
-QT_STANDARD_PROJECT_SETUP()
+# --- Compiler -----------------------------------------------------------------
+set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-FILE(GLOB_RECURSE PROGRAMMFILES ${PROJECT_SRC_PATH}/*)
+# CMake 4.4 knows no C++26 flag for MSVC (its newest is CXX23 -> /std:c++latest).
+# Map C++26 to /std:c++latest as well, and forward the mapping into try_compile
+# projects (e.g. FindThreads run by Qt6Config), which reload the compiler rules.
+if(MSVC AND NOT DEFINED CMAKE_CXX26_STANDARD_COMPILE_OPTION)
+    set(CMAKE_CXX26_STANDARD_COMPILE_OPTION "-std:c++latest")
+    set(CMAKE_CXX26_EXTENSION_COMPILE_OPTION "-std:c++latest")
+    list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES
+        CMAKE_CXX26_STANDARD_COMPILE_OPTION
+        CMAKE_CXX26_EXTENSION_COMPILE_OPTION)
+endif()
 
-QT_ADD_EXECUTABLE(FezModelGenerator ${PROGRAMMFILES})
+include(cmake/CompilerWarnings.cmake)
 
-SOURCE_GROUP(TREE ${PROJECT_SRC_PATH} PREFIX source FILES ${PROGRAMMFILES})
+# --- Output layout: build/<preset>/bin/<Config>/ ------------------------------
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-TARGET_INCLUDE_DIRECTORIES(FezModelGenerator PUBLIC ${PROJECT_SRC_PATH})
-TARGET_INCLUDE_DIRECTORIES(FezModelGenerator PUBLIC ${DepDir}/eigen/include/eigen3)
-TARGET_INCLUDE_DIRECTORIES(FezModelGenerator PUBLIC ${DepDir}/assimp/include)
+# --- Dependencies -------------------------------------------------------------
+find_package(assimp CONFIG REQUIRED)
+find_package(Eigen3 CONFIG REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Xml Concurrent)
 
-TARGET_LINK_LIBRARIES(FezModelGenerator PRIVATE debug     ${DepDir}/assimp/lib/assimp-vc143-mtd.lib)
-TARGET_LINK_LIBRARIES(FezModelGenerator PRIVATE optimized ${DepDir}/assimp/lib/assimp-vc143-mt.lib)
-TARGET_LINK_LIBRARIES(FezModelGenerator PRIVATE Qt6::Core Qt6::Widgets Qt6::Xml)
+qt_standard_project_setup()
 
-FILE(INSTALL ${DepDir}/assimp/bin/assimp-vc143-mtd.dll DESTINATION ${PROJECT_BIN_PATH}/debug)
-FILE(INSTALL ${DepDir}/assimp/bin/assimp-vc143-mt.dll  DESTINATION ${PROJECT_BIN_PATH}/release)
+# --- Executable ---------------------------------------------------------------
+set(PROJECT_SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/source)
 
-IF(MSVC)
-    SET_TARGET_PROPERTIES(FezModelGenerator PROPERTIES PDB_OUTPUT_DIRECTORY ${PROJECT_BIN_PATH})
-    SET_TARGET_PROPERTIES(FezModelGenerator PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BIN_PATH})
-	SET_TARGET_PROPERTIES(FezModelGenerator PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${PROJECT_BIN_PATH}/$(Configuration))
-ENDIF(MSVC)
+file(GLOB_RECURSE PROGRAMMFILES CONFIGURE_DEPENDS ${PROJECT_SRC_PATH}/*.cpp ${PROJECT_SRC_PATH}/*.h)
 
-ADD_CUSTOM_COMMAND(
-    TARGET FezModelGenerator
-    POST_BUILD
-    COMMAND CD $<$<CONFIG:Debug>:${PROJECT_BIN_PATH}/Debug>$<$<CONFIG:Release>:${PROJECT_BIN_PATH}/Release> && ${WINDEPLOYQT_EXECUTABLE} FezModelGenerator.exe --verbose 1 --dir . --plugindir plugins --no-translations --compiler-runtime
+qt_add_executable(FezModelGenerator ${PROGRAMMFILES})
+
+source_group(TREE ${PROJECT_SRC_PATH} PREFIX source FILES ${PROGRAMMFILES})
+
+target_include_directories(FezModelGenerator PRIVATE ${PROJECT_SRC_PATH})
+
+target_link_libraries(FezModelGenerator PRIVATE
+    assimp::assimp
+    Eigen3::Eigen
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Xml
+    Qt6::Concurrent
+)
+
+fez_set_project_warnings(FezModelGenerator)
+
+set_target_properties(FezModelGenerator PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:FezModelGenerator>"
+)
+
+# Make the build-tree executable runnable: assimp DLLs are copied by vcpkg
+# app-local deployment; Qt DLLs and plugins are deployed into the output
+# directory (never into the source tree). Install-time deployment follows later.
+if(WIN32)
+    get_target_property(_fez_qmake Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(_fez_qt_bin "${_fez_qmake}" DIRECTORY)
+    find_program(FEZ_WINDEPLOYQT windeployqt HINTS "${_fez_qt_bin}" NO_DEFAULT_PATH)
+    if(NOT FEZ_WINDEPLOYQT)
+        message(FATAL_ERROR "windeployqt not found next to qmake in '${_fez_qt_bin}'.")
+    endif()
+
+    add_custom_command(TARGET FezModelGenerator POST_BUILD
+        COMMAND "${FEZ_WINDEPLOYQT}"
+                $<$<CONFIG:Debug>:--debug>$<$<NOT:$<CONFIG:Debug>>:--release>
+                --no-translations --no-compiler-runtime --verbose 0
+                "$<TARGET_FILE:FezModelGenerator>"
+        COMMENT "Deploying Qt runtime next to FezModelGenerator"
+        VERBATIM
     )
+endif()
 
-QT_FINALIZE_PROJECT()
+qt_finalize_project()
