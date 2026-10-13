@@ -1,185 +1,178 @@
 #include "parser/GeometryParser.h"
 
 #include "geometry/FaceDecoding.h"
+#include "format/QStringFormatter.h"
+#include "xml/Xml.h"
 
-#include <QtCore/QDir>
-#include <QtCore/QFile>
-#include <QtCore/QFileInfo>
+#include <QtCore/QString>
 
-#include <assimp/Exporter.hpp>
-#include <assimp/scene.h>
-
-#include <qdebug.h>
+#include <format>
+#include <ranges>
+#include <utility>
 
 namespace fez
 {
 
-GeometryParser::GeometryParser() : m_Document{}
+namespace
 {
+
+// The first child element named name and every following sibling element, whatever its name (the original parser
+// walked nextSiblingElement() without a name). Empty when there is no such child.
+auto elementsFrom(const QDomElement& parent, const QString& name)
+{
+    return std::ranges::subrange(ChildElementRange::Iterator(parent.firstChildElement(name), QString()),
+                                 ChildElementRange::Iterator());
 }
 
-GeometryParser::~GeometryParser()
+// Text of element converted with QString::toInt.
+std::expected<int, Error> readIntText(const QDomElement& element)
 {
+    const auto text = element.text();
+    auto ok = false;
+    const auto value = text.toInt(&ok);
+
+    if(!ok)
+        return std::unexpected(
+            Error{ErrorKind::BadValue, std::format("text is not a valid int: '{}'", text), elementPath(element)});
+
+    return value;
 }
 
-GeometryParser::GeometryResult GeometryParser::parseGeometry(const QDomElement& elem)
+std::expected<Vertex, Error> parseVertex(const QDomElement& elem)
 {
-    if(elem.isNull() || elem.nodeName() != "ShaderInstancedIndexedPrimitives")
-        return {};
+    const auto position_elem = childElement(elem, QStringLiteral("Position"));
+    if(!position_elem)
+        return std::unexpected(position_elem.error());
 
-    auto vertices = parseVertices(elem.firstChildElement("Vertices"));
+    const auto normal_elem = childElement(elem, QStringLiteral("Normal"));
+    if(!normal_elem)
+        return std::unexpected(normal_elem.error());
 
+    const auto texture_coord_elem = childElement(elem, QStringLiteral("TextureCoord"));
+    if(!texture_coord_elem)
+        return std::unexpected(texture_coord_elem.error());
+
+    Vertex vertex;
+
+    // position
+    const auto vec3_elem = childElement(*position_elem, QStringLiteral("Vector3"));
+    if(!vec3_elem)
+        return std::unexpected(vec3_elem.error());
+
+    const auto position = readVector3(*vec3_elem);
+    if(!position)
+        return std::unexpected(position.error());
+
+    vertex.m_Position = *position;
+
+    // normal
+    const auto side_index = readIntText(*normal_elem);
+    if(!side_index)
+        return std::unexpected(side_index.error());
+
+    const auto normal = decodeFaceNormal(*side_index);
+    if(!normal)
+        return std::unexpected(Error{ErrorKind::BadValue,
+                                     std::format("normal side is not in 0-5: {}", *side_index),
+                                     elementPath(*normal_elem)});
+
+    vertex.m_Normal = *normal;
+
+    // texture coordinate
+    const auto vec2_elem = childElement(*texture_coord_elem, QStringLiteral("Vector2"));
+    if(!vec2_elem)
+        return std::unexpected(vec2_elem.error());
+
+    const auto texture_coordinate = readVector2(*vec2_elem);
+    if(!texture_coordinate)
+        return std::unexpected(texture_coordinate.error());
+
+    vertex.m_TextureCoordinate.x() = texture_coordinate->x();
+    vertex.m_TextureCoordinate.y() = 1.0f - texture_coordinate->y();
+
+    // Side 0 adds nothing (as before), so a U of -0 stays -0.
+    if(const auto uv_offset = faceUvOffset(*side_index); uv_offset != 0.0f)
+        vertex.m_TextureCoordinate.x() += uv_offset;
+
+    return vertex;
+}
+
+std::expected<Geometry::Vertices, Error> parseVertices(const QDomElement& elem)
+{
+    Geometry::Vertices result;
+
+    for(const auto& vertex_elem : elementsFrom(elem, QStringLiteral("VertexPositionNormalTextureInstance")))
+    {
+        auto vertex = parseVertex(vertex_elem);
+        if(!vertex)
+            return std::unexpected(std::move(vertex.error()));
+
+        result.push_back(*vertex);
+    }
+
+    return result;
+}
+
+std::expected<Geometry::Indices, Error> parseIndices(const QDomElement& elem)
+{
+    const auto index_elems = elementsFrom(elem, QStringLiteral("Index"));
+    const auto index_count = static_cast<size_t>(std::ranges::distance(index_elems));
+
+    if(index_count % 3 != 0)
+        return std::unexpected(Error{ErrorKind::BadValue,
+                                     std::format("index count is not divisible by 3: {}", index_count),
+                                     elementPath(elem)});
+
+    Geometry::Indices result;
+    result.reserve(index_count);
+
+    for(const auto& index_elem : index_elems)
+    {
+        const auto index = readIntText(index_elem);
+        if(!index)
+            return std::unexpected(index.error());
+
+        // Stored in size_t as before: a negative index wraps.
+        result.push_back(static_cast<size_t>(*index));
+    }
+
+    return result;
+}
+
+} // namespace
+
+std::expected<Geometry, Error> parseGeometry(const QDomElement& element)
+{
+    const auto expected_name = QStringLiteral("ShaderInstancedIndexedPrimitives");
+
+    if(element.isNull())
+        return std::unexpected(
+            Error{ErrorKind::MissingElement, std::format("missing element '{}'", expected_name), expected_name.toStdString()});
+
+    if(element.nodeName() != expected_name)
+        return std::unexpected(Error{ErrorKind::BadValue,
+                                     std::format("expected element '{}', found '{}'", expected_name, element.nodeName()),
+                                     elementPath(element)});
+
+    const auto vertices_elem = childElement(element, QStringLiteral("Vertices"));
+    if(!vertices_elem)
+        return std::unexpected(vertices_elem.error());
+
+    auto vertices = parseVertices(*vertices_elem);
     if(!vertices)
-        return {};
+        return std::unexpected(std::move(vertices.error()));
 
-    auto indices = parseIndices(elem.firstChildElement("Indices"));
+    const auto indices_elem = childElement(element, QStringLiteral("Indices"));
+    if(!indices_elem)
+        return std::unexpected(indices_elem.error());
 
+    auto indices = parseIndices(*indices_elem);
     if(!indices)
-        return {};
+        return std::unexpected(std::move(indices.error()));
 
     Geometry result;
     result.m_Vertices = std::move(*vertices);
     result.m_Indices = std::move(*indices);
-
-    return result;
-}
-
-GeometryParser::VerticesResult GeometryParser::parseVertices(const QDomElement& elem)
-{
-    if(elem.isNull())
-        return {};
-
-    VerticesResult::value_type result;
-
-    // count vertices
-    auto vertex_elem = elem.firstChildElement("VertexPositionNormalTextureInstance");
-    auto vertex_count = size_t(0);
-
-    while(!vertex_elem.isNull())
-    {
-        vertex_count++;
-
-        vertex_elem = vertex_elem.nextSiblingElement();
-    }
-
-    result.resize(vertex_count);
-
-    // set vertices
-    vertex_elem = elem.firstChildElement("VertexPositionNormalTextureInstance");
-    vertex_count = size_t(0);
-
-    while(!vertex_elem.isNull())
-    {
-        const auto position_elem = vertex_elem.firstChildElement("Position");
-        const auto normal_elem = vertex_elem.firstChildElement("Normal");
-        const auto texture_coord_elem = vertex_elem.firstChildElement("TextureCoord");
-
-        if(position_elem.isNull() || normal_elem.isNull() || texture_coord_elem.isNull())
-            return {};
-
-        auto& vertex = result[vertex_count];
-
-        // position
-        const auto vec3_elem = position_elem.firstChildElement("Vector3");
-
-        if(vec3_elem.isNull())
-            return {};
-
-        if(!vec3_elem.hasAttribute("x") || !vec3_elem.hasAttribute("y") || !vec3_elem.hasAttribute("z"))
-            return {};
-
-        auto x_ok = false;
-        auto y_ok = false;
-        auto z_ok = false;
-
-        vertex.m_Position.x() = vec3_elem.attribute("x").toFloat(&x_ok);
-        vertex.m_Position.y() = vec3_elem.attribute("y").toFloat(&y_ok);
-        vertex.m_Position.z() = vec3_elem.attribute("z").toFloat(&z_ok);
-
-        if(!x_ok || !y_ok || !z_ok)
-            return {};
-
-        // normal
-        auto side_index_ok = false;
-        const auto side_index = normal_elem.text().toInt(&side_index_ok);
-
-        if(!side_index_ok)
-            return {};
-
-        const auto normal = decodeFaceNormal(side_index);
-
-        if(!normal)
-            return {};
-
-        vertex.m_Normal = *normal;
-
-        // texture coordinate
-        const auto vec2_elem = texture_coord_elem.firstChildElement("Vector2");
-
-        if(vec2_elem.isNull())
-            return {};
-
-        if(!vec2_elem.hasAttribute("x") || !vec2_elem.hasAttribute("y"))
-            return {};
-
-        x_ok = false;
-        y_ok = false;
-
-        vertex.m_TextureCoordinate.x() = vec2_elem.attribute("x").toFloat(&x_ok);
-        vertex.m_TextureCoordinate.y() = 1.0f - vec2_elem.attribute("y").toFloat(&y_ok);
-
-        // Side 0 adds nothing (as before), so a U of -0 stays -0.
-        if(const auto uv_offset = faceUvOffset(side_index); uv_offset != 0.0f)
-            vertex.m_TextureCoordinate.x() += uv_offset;
-
-        if(!x_ok || !y_ok)
-            return {};
-
-        vertex_count++;
-        vertex_elem = vertex_elem.nextSiblingElement();
-    }
-
-    return result;
-}
-
-GeometryParser::IndicesResult GeometryParser::parseIndices(const QDomElement& elem)
-{
-    if(elem.isNull())
-        return {};
-
-    IndicesResult::value_type result;
-
-    // count indices
-    auto index_elem = elem.firstChildElement("Index");
-    auto index_count = size_t(0);
-
-    while(!index_elem.isNull())
-    {
-        index_count++;
-
-        index_elem = index_elem.nextSiblingElement();
-    }
-
-    result.resize(index_count);
-
-    if(index_count % 3 != 0)
-        return {};
-
-    // set indices
-    index_elem = elem.firstChildElement("Index");
-    index_count = size_t(0);
-
-    while(!index_elem.isNull())
-    {
-        auto index_ok = false;
-        result[index_count] = index_elem.text().toInt(&index_ok);
-
-        if(!index_ok)
-            return {};
-
-        index_count++;
-        index_elem = index_elem.nextSiblingElement();
-    }
 
     return result;
 }

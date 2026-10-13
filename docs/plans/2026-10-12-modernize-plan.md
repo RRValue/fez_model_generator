@@ -591,14 +591,34 @@ site keeps the integer division `float(width / 16)` (fixed in Task 28).
 `parseGeometry(const QDomElement&) -> std::expected<Geometry, Error>` using `xml/` helpers; callers adapted.
 
 **Acceptance criteria:**
-- [ ] Fixture tests (`tests/data/parser/geometry_*.xml`): one quad with two faces; index count not divisible by 3;
+- [x] Fixture tests (`tests/data/parser/geometry_*.xml`): one quad with two faces; index count not divisible by 3;
       missing `Vector3` attribute; invalid normal side.
-- [ ] Index storage and winding unchanged.
-- [ ] No assimp include remains anywhere in `parser/` (`GeometryParser.cpp` currently includes `assimp/Exporter.hpp`
+- [x] Index storage and winding unchanged.
+- [x] No assimp include remains anywhere in `parser/` (`GeometryParser.cpp` currently includes `assimp/Exporter.hpp`
       and `assimp/scene.h` without using them).
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[parser]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[parser]"`; golden passes.
+
+**Implementation notes (fez_mode-777.14):**
+- `parser/GeometryParser.{h,cpp}`: free function `parseGeometry(const QDomElement&) -> std::expected<Geometry, Error>`
+  with file-local `parseVertex`/`parseVertices`/`parseIndices`/`readIntText`; uses `childElement`, `readVector3`,
+  `readVector2`, `elementPath`. Errors: `MissingElement` (null element, missing child), `BadValue` (wrong element name,
+  `Normal`/`Index` text not an int, side outside 0–5, index count not divisible by 3, source `…/Indices`),
+  `MissingAttribute` from the vector helpers. The class, its unused `QDomDocument`/name/path members and the assimp
+  includes are gone.
+- **Kept odd behavior:** vertex and index iteration start at the first `VertexPositionNormalTextureInstance` /
+  `Index` child and then visit *every* following sibling element whatever its name (old `nextSiblingElement()` without
+  a name), done with `ChildElementRange::Iterator(first, QString())` instead of `childElements(parent, name)`, which
+  would filter by name. Index text is read with `toInt` and stored as `size_t` (a negative index wraps). Numbers use
+  `QString::toFloat`/`toInt` as before; V is `1.0f - v`, U gets `faceUvOffset` only when non-zero. Tests pin all of it.
+- Callers (`ArtObjectParser.cpp`, `TrileSetParser.cpp`) call `parseGeometry(...)` and still return their
+  `std::optional` (failure still drops the asset); the error is not logged yet (as before, nothing was printed).
+- `tests/unit/GeometryParserTests.cpp` (`[parser]`): 8 test cases / 58 assertions (4 fixtures in `tests/data/parser/`,
+  the rest inline via `parseXml`), written first and seen failing to compile.
+- Checks: Debug and Release build (no new warnings; the two `setContent` C4996 warnings predate this task);
+  `fez_tests.exe "[parser]"` passed; `ctest --preset windows-debug` and `windows-release` 67/67;
+  `ctest --preset windows-release-golden` passed against `golden/v1` (576 s).
 
 **Dependencies:** Tasks 11, 10
 

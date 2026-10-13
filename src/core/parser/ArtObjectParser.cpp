@@ -59,7 +59,7 @@ ArtObjectParser::GeometryResult ArtObjectParser::parse(const QString& path) noex
     if(art_obj_elem.isNull())
         return {};
 
-    auto geometry = GeometryParser().parseGeometry(art_obj_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
+    auto geometry = parseGeometry(art_obj_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
 
     if(!geometry)
         return {};
@@ -68,7 +68,7 @@ ArtObjectParser::GeometryResult ArtObjectParser::parse(const QString& path) noex
     geometry->m_Texture.m_TextureName = name + ".png";
     geometry->m_Texture.m_TextureOrgFile = org_path + "/" + name + ".png";
 
-    return geometry;
+    return std::move(*geometry);
 }
 
 } // namespace fez

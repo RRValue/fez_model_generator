@@ -134,7 +134,7 @@ TrileSetParser::TrileResult TrileSetParser::parserTrile(const QDomElement& elem)
     if(geom_elem.isNull())
         return {};
 
-    auto geometry = GeometryParser().parseGeometry(geom_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
+    auto geometry = parseGeometry(geom_elem.firstChildElement("ShaderInstancedIndexedPrimitives"));
 
     if(!geometry)
         return {};
