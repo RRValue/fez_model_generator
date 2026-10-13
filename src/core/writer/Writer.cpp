@@ -1,5 +1,7 @@
 #include "writer/Writer.h"
 
+#include "geometry/Image.h"
+
 #include <QtCore/QFile>
 #include <QtCore/QDir>
 
@@ -154,21 +156,12 @@ Writer::MeshId Writer::addGeometry(const Geometry& geometry)
         if(texture.isNull())
             return {};
         
-        if(texture.hasAlphaChannel())
+        if(hasTranslucentPixels(texture))
         {
-            bool use_opacity = false;
+            aiString opacity_texture_filename(geometry.m_Texture.m_TextureName.toStdString());
 
-            for(int x = 0; x < texture.width() && !use_opacity; x++)
-                for(int y = 0; y < texture.height() && !use_opacity; y++)
-                    use_opacity = texture.pixelColor(x, y).alphaF() < 1.0f;
-
-            if(use_opacity)
-            {
-                aiString opacity_texture_filename(geometry.m_Texture.m_TextureName.toStdString());
-
-                result = material->AddProperty(&opacity_texture_filename, AI_MATKEY_TEXTURE_OPACITY(0));
-            }
-        }    
+            result = material->AddProperty(&opacity_texture_filename, AI_MATKEY_TEXTURE_OPACITY(0));
+        }
 
     }
 

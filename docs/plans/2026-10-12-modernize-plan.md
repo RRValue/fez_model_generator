@@ -563,10 +563,20 @@ site keeps the integer division `float(width / 16)` (fixed in Task 28).
 **Description:** `hasTranslucentPixels(const QImage&)` replacing the nested loop in `Writer::addGeometry`.
 
 **Acceptance criteria:**
-- [ ] Tests: opaque RGB image, RGBA fully opaque, RGBA with one translucent pixel, null image.
+- [x] Tests: opaque RGB image, RGBA fully opaque, RGBA with one translucent pixel, null image.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[geometry]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[geometry]"`; golden passes.
+
+**Implementation notes (fez_mode-777.13):**
+- `geometry/Image.{h,cpp}`: `hasTranslucentPixels(const QImage&)` keeps the old rule exactly: false without alpha
+  channel (also for a null image), otherwise true at the first pixel (x outer, y inner) with
+  `pixelColor(x, y).alphaF() < 1.0f`. `Writer::addGeometry` still returns early for a null plane texture before the
+  check, then adds the opacity texture when the function returns true.
+- `tests/unit/ImageTests.cpp` (`[geometry]`): 4 test cases (translucent pixel first and last), written first and seen
+  failing to compile.
+- Checks: Debug and Release build (no new warnings); `fez_tests.exe "[geometry]"` 14 test cases / 63 assertions;
+  `ctest --preset windows-debug` and `windows-release` 59/59; `ctest --preset windows-release-golden` passed against `golden/v1` (518 s).
 
 **Dependencies:** Task 10
 

@@ -6,6 +6,8 @@ set(FEZ_CORE_SOURCES
     format/QStringFormatter.h
     geometry/FaceDecoding.cpp
     geometry/FaceDecoding.h
+    geometry/Image.cpp
+    geometry/Image.h
     geometry/TexturedQuad.cpp
     geometry/TexturedQuad.h
     math/Quaternion.h
