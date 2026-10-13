@@ -307,7 +307,7 @@ Because this test is registered by hand, it does not receive the `DL_PATHS` of `
 - [ ] `VS_DEBUGGER_COMMAND_ARGUMENTS` is set from cache variable `FEZ_DEBUG_ARGS`.
 
 **Verification:**
-- [ ] Build succeeds; `ctest --preset windows-debug` and `-L golden` pass.
+- [ ] Build succeeds; `ctest --preset windows-debug` and `ctest --preset windows-release-golden` pass.
 
 **Dependencies:** Task 5
 
