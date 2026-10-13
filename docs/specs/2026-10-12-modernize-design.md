@@ -64,8 +64,8 @@ GitHub Actions CI, other output formats (glTF), GUI, Linux/macOS builds, C++ mod
 
 ```
 CMakeLists.txt              # project, C++26, options, add_subdirectory(src, tests)
-CMakePresets.json           # committed; toolchain from $env{VCPKG_ROOT}
-CMakeUserPresets.json       # gitignored; local vcpkg root, Qt path, FEZ_DATA_DIR, FEZ_GOLDEN_DIR
+CMakePresets.json           # committed; no toolchain path (CMakeLists.txt derives it from VCPKG_FEZ_MODEL_BASE)
+CMakeUserPresets.json       # gitignored; VCPKG_FEZ_MODEL_BASE (vcpkg root), Qt path, FEZ_DATA_DIR, FEZ_GOLDEN_DIR
 cmake/CompilerWarnings.cmake
 src/core/                   # fez_core static library (moved from source/ via git mv)
 src/cli/                    # fez_model_generator executable
@@ -77,8 +77,11 @@ tools/blender/all_texture_sample_closest.py
 
 ### Dependencies
 
-- vcpkg classic mode: `VCPKG_MANIFEST_MODE=OFF`, triplet `x64-windows`, toolchain
-  `$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake`. No `vcpkg.json` in the repo.
+- vcpkg classic mode: `VCPKG_MANIFEST_MODE=OFF`, triplet `x64-windows`. No `vcpkg.json` in the repo.
+- The vcpkg root comes from the CMake cache variable `VCPKG_FEZ_MODEL_BASE` (user preset or `-D`), not from a
+  `VCPKG_ROOT` environment variable. Before `project()`, the top-level `CMakeLists.txt` fails with `FATAL_ERROR` if it
+  is unset or invalid, then sets `VCPKG_ROOT`, `ENV{VCPKG_ROOT}` and
+  `CMAKE_TOOLCHAIN_FILE=${VCPKG_FEZ_MODEL_BASE}/scripts/buildsystems/vcpkg.cmake`.
 - One-time setup by the developer: `vcpkg install assimp eigen3 catch2 --triplet x64-windows`.
 - `find_package(assimp CONFIG REQUIRED)` → `assimp::assimp`;
   `find_package(Eigen3 CONFIG REQUIRED)` → `Eigen3::Eigen`;

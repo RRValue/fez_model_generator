@@ -16,8 +16,11 @@ without changing a single output byte. Phase 2 fixes known bugs, one deliberatel
 
 ## Architecture Decisions
 
-- **vcpkg classic mode** with a user-provided `VCPKG_ROOT` (prebuilt `assimp`, `eigen3`, `catch2`, triplet
-  `x64-windows`); no `vcpkg.json`. Qt 6 comes from the local Qt install via `CMAKE_PREFIX_PATH` in the gitignored
+- **vcpkg classic mode** with the vcpkg root given by the CMake cache variable `VCPKG_FEZ_MODEL_BASE` (prebuilt
+  `assimp`, `eigen3`, `catch2`, triplet `x64-windows`); no `vcpkg.json`. No `VCPKG_ROOT` environment variable is
+  needed: the top-level `CMakeLists.txt` checks `VCPKG_FEZ_MODEL_BASE` before `project()` and sets `VCPKG_ROOT`
+  (CMake variable and `ENV{VCPKG_ROOT}`) and `CMAKE_TOOLCHAIN_FILE` from it. It is set in `CMakeUserPresets.json`
+  or with `-DVCPKG_FEZ_MODEL_BASE=<path>`. Qt 6 comes from the local Qt install via `CMAKE_PREFIX_PATH` in the gitignored
   `CMakeUserPresets.json`; a committed `CMakeUserPresets.example.json` documents the expected entries.
 - **Presets for a multi-config generator:** one configure preset `windows-vs` (`build/windows-vs`, generator
   `Visual Studio 18 2026`, `x64`), build/test presets `windows-debug` and `windows-release`. (Refines the spec's
@@ -96,12 +99,16 @@ the VS 18 generator, switch to C++26, and fix only what `/std:c++latest` needs t
       `find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Xml Concurrent)` (Widgets until Task 2),
       `CMAKE_CXX_STANDARD 26`; no `RVDep`, no hard-coded `.lib`/`.dll` names, no `FILE(INSTALL …)`, no `bin/` in the
       source tree; missing dependencies fail configuration with `FATAL_ERROR`.
-- [ ] `CMakePresets.json` (configure `windows-vs`, build/test `windows-debug`, `windows-release`), toolchain
-      `$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake`, `VCPKG_MANIFEST_MODE=OFF`, `VCPKG_TARGET_TRIPLET=x64-windows`;
-      `CMakeUserPresets.example.json` committed, `CMakeUserPresets.json` and `build/` gitignored.
+- [ ] `CMakePresets.json` (configure `windows-vs`, build/test `windows-debug`, `windows-release`), no
+      toolchain path in the committed presets, `VCPKG_MANIFEST_MODE=OFF`, `VCPKG_TARGET_TRIPLET=x64-windows`;
+      `CMakeUserPresets.example.json` (sets the cache variable `VCPKG_FEZ_MODEL_BASE`) committed, `CMakeUserPresets.json` and `build/` gitignored.
 - [ ] `cmake/CompilerWarnings.cmake` applies `/W4 /permissive- /utf-8 /Zc:__cplusplus`, with third-party headers
       treated as external (`/external:W0`). Model headers include what they use; `M_PI` replaced by
       `std::numbers::pi_v<float>` (identical value in float).
+- [ ] Before `project()`, `CMakeLists.txt` fails with `FATAL_ERROR` when `VCPKG_FEZ_MODEL_BASE` is unset or has no
+      `scripts/buildsystems/vcpkg.cmake`; otherwise it sets `VCPKG_ROOT` and `ENV{VCPKG_ROOT}` to it and
+      `CMAKE_TOOLCHAIN_FILE` to `${VCPKG_FEZ_MODEL_BASE}/scripts/buildsystems/vcpkg.cmake`. Works with no
+      `VCPKG_ROOT` in the environment.
 
 **Verification:**
 - [ ] `cmake --preset windows-vs` and `cmake --build --preset windows-debug` succeed from a clean `build/`.
@@ -195,7 +202,8 @@ extra and differing files, with the first differing line for `.obj`/`.mtl`.
 Skips (Catch2 `SKIP`) when `FEZ_DATA_DIR`/`FEZ_GOLDEN_DIR` are unset. Registered via `add_test` with label `golden`.
 Because this test is registered by hand, it does not receive the `DL_PATHS` of `catch_discover_tests`; set
 `ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:<Qt bin>;<vcpkg bin>"` on it so both `fez_tests` and the
-`QProcess` child find their DLLs.
+`QProcess` child find their DLLs. The vcpkg `bin` directory is derived from `VCPKG_FEZ_MODEL_BASE`
+(`installed/x64-windows/bin`, or `installed/x64-windows/debug/bin` for Debug).
 
 **Acceptance criteria:**
 - [ ] `ctest --preset windows-debug -L golden` passes against `golden/v1` without Qt or vcpkg on the caller's `PATH`.
@@ -212,7 +220,8 @@ Because this test is registered by hand, it does not receive the `DL_PATHS` of `
 **Estimated scope:** S
 
 ### Checkpoint: Phase 0
-- [ ] Clean configure + build from scratch with only `VCPKG_ROOT` and the user preset.
+- [ ] Clean configure + build from scratch with only the user preset (which sets `VCPKG_FEZ_MODEL_BASE`) and no
+      `VCPKG_ROOT` in the environment.
 - [ ] Default tests and golden test pass.
 - [ ] Review with human before restructuring.
 
@@ -676,7 +685,8 @@ Decisions), `--verbose`; print a failure summary; exit 0 / 1 (any asset failed) 
 ### Task 27: Deploy step and README
 
 **Description:** `qt_generate_deploy_app_script` + `install()` so `cmake --install` produces a runnable folder with Qt
-and assimp DLLs. README documents vcpkg setup (`vcpkg install assimp eigen3 catch2 --triplet x64-windows`),
+and assimp DLLs. README documents vcpkg setup (`vcpkg install assimp eigen3 catch2 --triplet x64-windows`, then
+`VCPKG_FEZ_MODEL_BASE` in the user preset),
 `CMakeUserPresets.json`, build/test commands, CLI usage, the Blender helper script, and golden test setup.
 
 **Acceptance criteria:**
