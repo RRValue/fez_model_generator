@@ -112,7 +112,7 @@ the VS 18 generator, switch to C++26, and fix only what `/std:c++latest` needs t
 
 **Verification:**
 - [x] `cmake --preset windows-vs` and `cmake --build --preset windows-debug` succeed from a clean `build/`.
-- [ ] Manual: the program starts, shows the folder dialog, converts a small subset of the FEZ export.
+- [x] Manual: the program starts, shows the folder dialog, converts a small subset of the FEZ export.
 
 **Implementation notes (fez_mode-777.1):**
 - CMake does not let `CMakePresets.json` refer to presets from `CMakeUserPresets.json`, so the committed file holds
@@ -289,7 +289,7 @@ Because this test is registered by hand, it does not receive the `DL_PATHS` of `
 - [x] Clean configure + build from scratch with only the user preset (which sets `VCPKG_FEZ_MODEL_BASE`) and no
       `VCPKG_ROOT` in the environment.
 - [x] Default tests and golden test pass.
-- [ ] Review with human before restructuring.
+- [x] Review with human before restructuring.
 
 ---
 
