@@ -103,6 +103,9 @@ tools/blender/all_texture_sample_closest.py
 
 - Generator `Visual Studio 18 2026`, architecture `x64`.
 - Configure/build/test presets `windows-debug` and `windows-release`.
+- `CMakePresets.json` holds only hidden base presets (`windows-vs-base`, `windows-debug-base`,
+  `windows-release-base`). The visible `windows-vs`, `windows-debug` and `windows-release` live in the gitignored
+  `CMakeUserPresets.json` and inherit them, because a project preset cannot read values from the user file.
 - `ctest --preset windows-debug` runs unit and mini end-to-end tests; golden tests run with label `golden`
   and only when `FEZ_DATA_DIR` and `FEZ_GOLDEN_DIR` are set.
 
