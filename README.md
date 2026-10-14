@@ -139,9 +139,10 @@ input) are not deleted. A texture that cannot be copied is reported as an `Io` e
 cmake --install build/windows-vs --config Release --prefix C:\path\to\fez_model_generator
 ```
 
-produces a self-contained folder: `bin/` holds `fez_model_generator.exe`, the Qt runtime (deployed by Qt's
-`qt_generate_deploy_app_script`, plugins in `plugins/`), assimp and its vcpkg dependencies, and the MSVC runtime.
-It runs without Qt, vcpkg or Visual Studio on `PATH`.
+produces a self-contained folder: `bin/` holds `fez_model_generator.exe`, the Qt runtime (`Qt6Core`, `Qt6Gui`,
+`Qt6Xml`, `Qt6Concurrent` and `qt.conf`, deployed by Qt's `qt_generate_deploy_app_script`; no Qt plugins, since the
+converter is a console application and reads only PNG, which is built into `Qt6Gui`), assimp and its vcpkg
+dependencies, and the MSVC runtime. It runs without Qt, vcpkg or Visual Studio on `PATH`.
 
 ## Blender helper
 

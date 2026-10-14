@@ -59,7 +59,8 @@ add_custom_command(TARGET fez_model_generator POST_BUILD
 )
 
 # --- Install: cmake --install build/windows-vs --config Release --prefix <dir> -----------------------------------
-# <dir>/bin holds a self-contained converter: the executable, the Qt runtime (windeployqt via Qt's deploy script),
+# <dir>/bin holds a self-contained converter: the executable, the Qt runtime (windeployqt via Qt's deploy script,
+# trimmed to the four Qt modules the converter links),
 # assimp and its vcpkg dependencies (runtime dependency set, resolved in the vcpkg bin directory of the installed
 # configuration) and the MSVC runtime (InstallRequiredSystemLibraries).
 include(GNUInstallDirs)
@@ -77,11 +78,22 @@ install(RUNTIME_DEPENDENCY_SET fez_runtime_dependencies
     POST_EXCLUDE_REGEXES "[/\\\\][Ss]ystem32[/\\\\]" "[/\\\\][Ww]indows[/\\\\]"
 )
 
+# windeployqt deploys only Qt6Core/Gui/Xml/Concurrent: the converter is a QCoreApplication (no platform plugin) and
+# only reads PNG, which is built into Qt6Gui, so no plugins are needed. Without the trimming options windeployqt adds
+# Qt6Network and Qt6Svg (for the tls, networkinformation and svg plugins), all plugin types Qt6Gui would use, the
+# software OpenGL renderer and the system D3D compiler, none of which the converter loads.
 qt_generate_deploy_app_script(
     TARGET fez_model_generator
     OUTPUT_SCRIPT FEZ_QT_DEPLOY_SCRIPT
     NO_TRANSLATIONS
     NO_COMPILER_RUNTIME
+    DEPLOY_TOOL_OPTIONS
+        --no-plugins
+        --no-network
+        --no-svg
+        --no-opengl-sw
+        --no-system-d3d-compiler
+        --no-system-dxc-compiler
 )
 install(SCRIPT "${FEZ_QT_DEPLOY_SCRIPT}")
 

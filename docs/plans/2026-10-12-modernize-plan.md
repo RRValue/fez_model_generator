@@ -1668,6 +1668,42 @@ normal FEZ data, e.g. 521 overlapped instances use empty triles).
   passed; `ctest --preset windows-debug` 213/213; `ctest --preset windows-release-golden` passed against
   `golden/v4` (524 s). **No output change, no `v5`.**
 
+### fez_mode-777.36: Trim unneeded Qt modules and plugins from install
+
+**Description:** `cmake --install` deployed windeployqt's defaults for an application linking Qt6Gui: Qt6Network,
+Qt6Svg, `D3Dcompiler_47.dll`, `opengl32sw.dll` and the generic, iconengines, imageformats, networkinformation,
+platforms and tls plugins. The converter is a QCoreApplication using Core, Gui (QImage, PNG built in), Xml and
+Concurrent; trim the install to what it loads.
+
+**Implementation notes (fez_mode-777.36):**
+- `src/cli/CMakeLists.txt`: `qt_generate_deploy_app_script(… DEPLOY_TOOL_OPTIONS --no-plugins --no-network --no-svg
+  --no-opengl-sw --no-system-d3d-compiler --no-system-dxc-compiler)` (all listed by `windeployqt --help` of Qt 6.11.2).
+  `--no-plugins` alone still deploys Qt6Network and Qt6Svg (windeployqt adds them for Qt6Gui), hence `--no-network`
+  and `--no-svg`. `qt.conf` (`Prefix = ..`) is still generated, so the installed exe does not look for plugins in the
+  Qt installation either. Build tree unchanged (it never had plugins).
+- Why nothing more is needed: `dumpbin /dependents` of `Qt6Gui.dll` lists only Qt6Core, the MSVC runtime and system
+  DLLs (`d3d11`, `d3d12`, `dxgi`, `DWrite`, …; `D3Dcompiler_47` is loaded only to compile RHI shaders); a
+  QCoreApplication loads no platform plugin; the golden input contains only `.png` and `.xml` files (1787 / 1047), and
+  PNG is built into Qt6Gui.
+- Install contents (`cmake --install build/windows-vs --config Release --prefix <temp>`):
+  - Before: 41 files, 58 899 574 bytes. `bin/`: `fez_model_generator.exe`, `qt.conf`, `Qt6Core`, `Qt6Gui`, `Qt6Xml`,
+    `Qt6Concurrent`, `Qt6Network`, `Qt6Svg`, `D3Dcompiler_47`, `opengl32sw`, assimp + `kubazip`, `minizip`,
+    `poly2tri`, `pugixml`, `z`, MSVC runtime (`concrt140`, `msvcp140`, `msvcp140_1`, `msvcp140_2`,
+    `msvcp140_atomic_wait`, `msvcp140_codecvt_ids`, `vcruntime140`, `vcruntime140_1`). `plugins/`:
+    `generic/qtuiotouchplugin`, `iconengines/qsvgicon`, `imageformats/` (`qgif`, `qicns`, `qico`, `qjpeg`, `qsvg`, `qtga`, `qtiff`, `qwbmp`,
+    `qwebp`), `networkinformation/qnetworklistmanager`, `platforms/qwindows`, `tls/` (`qcertonlybackend`,
+    `qschannelbackend`).
+  - After: 20 files, 28 260 550 bytes (−52 %). `bin/` as before without `Qt6Network`, `Qt6Svg`, `D3Dcompiler_47`
+    and `opengl32sw`; no `plugins/` directory.
+- README install section names the deployed Qt files and says there are no plugins.
+- Checks: Debug and Release build (no warnings); installed exe with only `/usr/bin` and the Windows system directories
+  on `PATH` (no Qt, no vcpkg): `--help` exit 0; temp copy of `tests/data/mini_export` → exit 0, output equals
+  `mini_expected` (`diff -r`), input unchanged; temp copy of the golden input (all art objects, background planes,
+  character animations, trile sets, only `levels/arch.xml`) with `--only lv` → exit 0, `lv_export/ARCH` (22 files:
+  animated `butterfly*.ani.png` planes, NPC `*/Idle.ani.png`, `map_d` translucent materials) equals
+  `golden/v4/lv_export/ARCH`; `ctest --preset windows-debug` 213/213; `ctest --preset windows-release-golden` passed
+  against `golden/v4` (493 s). **No output change.**
+
 ---
 
 ## Parallelization
