@@ -1468,9 +1468,10 @@ policy decided in Open Questions.
 
 ## Open Questions
 
-- **Texture overwrite policy (Task 32):** overwrite existing destination textures, skip them, or fail?
+- **Texture overwrite policy (Task 32):** decided 2026-10-14 by the user: **overwrite** existing destination
+  textures, like the OBJ/MTL files. Re-running into an existing output folder then gives the same result as a fresh one.
 - **Trile id −1 (Task 30):** meaning unknown; to be investigated against the FEZ data.
-- **Golden reference location:** proposed `Z:/fez_data/golden/v<N>`; confirm the path.
+- **Golden reference location:** confirmed `Z:/fez_data/golden/v<N>` (v1 from Phase 0, v2 from Task 28).
 
 ## Notes
 
