@@ -1052,12 +1052,54 @@ deleted.
 no-overwrite semantics as today). `Writer`, `GeometryWriter`, `LevelWriter` are deleted.
 
 **Acceptance criteria:**
-- [ ] Test: `exportObj` writes `.obj` + `.mtl` into a temp dir; unwritable path → `Export` error.
-- [ ] Export errors are surfaced to the caller (logged by `Application`).
-- [ ] `src/core/writer/` removed.
+- [x] Test: `exportObj` writes `.obj` + `.mtl` into a temp dir; unwritable path → `Export` error.
+- [x] Export errors are surfaced to the caller (logged by `Application`).
+- [x] `src/core/writer/` removed.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[export]"`; default + golden pass.
+- [x] Tests pass: `fez_tests.exe "[export]"`; default + golden pass.
+
+**Implementation notes (fez_mode-777.23):**
+- `export/ObjExport.{h,cpp}`: `makeDirectory(path)` and `exportObj(const aiScene&, dir, name)`, both
+  `std::expected<void, Error>` with kind `Export`. `exportObj` creates `dir`, then writes `<dir>/<name>.obj` (+ `.mtl`)
+  with the assimp OBJ exporter (same path string as before); the error carries assimp's error string and the `.obj`
+  path (or the directory when it cannot be created).
+- **Directory race fixed by design** (replaces `Writer`'s 3-attempt `mkpath` retry): `makeDirectory` does not use
+  `QDir::mkpath`; it creates the absolute clean path one component at a time, parents first, with `QDir::mkdir`, and a
+  failed `mkdir` only counts as an error when the component is not a directory afterwards (another thread created it
+  first). So no shared root has to be created up front, and the folders appear exactly where `Writer` created them.
+- `export/SceneComposition.{h,cpp}`: `buildGeometryScene(const Geometry&) -> std::optional<ComposedScene>` (one unnamed
+  node at the origin; no scene when the mesh gets no id, as `GeometryWriter::writeObj` returned early) and
+  `buildLevelScene(const Level&) -> ComposedScene` (the `LevelWriter` loops and skip rules unchanged; always a scene).
+  `ComposedScene` = `ScenePtr` (`std::unique_ptr<aiScene, SceneDeleter>`, so callers outside `export/` need no assimp
+  header) + `std::vector<TextureFile>` (source file, name relative to the export dir), one entry per mesh with an id in
+  mesh order, as `Writer::m_Textures` recorded them.
+- `export/TextureCopier.{h,cpp}`: thread-safe `copy(source, destination) -> bool`, one copier per run shared by all
+  phases. Each destination (key `QDir::cleanPath`) is claimed under a mutex and copied at most once; the copy itself
+  runs outside the lock; a failed copy releases the claim (a later request tries again, as every request did before).
+  Copy semantics as `Writer::save`: the destination's own directory is created with `QDir::mkdir` (one level, not
+  `mkpath`), `QFile::copy` never overwrites. Before, a level tried the copy once per instance (all but the first failed
+  because the file existed); the output is the same. Copy errors stay unreported until Task 32.
+- `Application` (file-local helpers `exportGeometry`, `exportScene`, `logExportError`): an AO/trile export creates its
+  directory first (as the `GeometryWriter` constructor did, even when nothing is exported), builds the scene, exports
+  it and copies the textures only after a successful export (as before). Export and directory errors are logged with
+  `qWarning` ("Export failed: <message> - <source>"; before they were dropped silently) and only that scene's files are
+  missing. `src/core/writer/` deleted.
+- Tests: `tests/unit/ObjExportTests.cpp` (renamed from `WriterTests.cpp`; `[export]`): `.obj` + `.mtl` (exactly these
+  two files) in a missing directory; directory below a regular file → `Export`; `.obj` path that is a directory →
+  `Export`; `makeDirectory` nested/existing; the adapted race test (20 rounds × 16 threads, sibling directories below a
+  missing parent) plus the same directory from 16 threads, and 5 rounds × 16 concurrent `exportObj` calls below a
+  missing parent. The three concurrency tests failed with a plain `QDir().mkpath` implementation (many missing
+  directories per run) and pass with the component-wise one. `tests/unit/TextureCopierTests.cpp` (`[export][texture]`,
+  7 cases: copy, one-level directory creation, no nested creation (kept), no overwrite, once per destination incl.
+  path spelling, failure not remembered, 16 threads → exactly one copy) and `tests/unit/SceneCompositionTests.cpp`
+  (`[export][scene]`, 5 cases: node/mesh/texture order, skip rules, exact node matrices, no-id instances, empty level).
+  Written first and seen failing to compile.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[export]"` 32 test cases / 388 assertions passed
+  (5 repeated runs); `ctest --preset windows-debug` and `windows-release` 172/172; `ctest --preset
+  windows-release-golden` passed against `golden/v1` (572 s). Reduced input (15 smallest levels plus their trile sets,
+  art objects, all plane/NPC textures; a copy of `Z:/fez_data/golden/input`) converted 6 times into fresh directories
+  with the Release binary: every run exit 0, all 15 levels exported, every output file byte-identical to `golden/v1`.
 
 **Dependencies:** Task 22
 
@@ -1068,7 +1110,11 @@ no-overwrite semantics as today). `Writer`, `GeometryWriter`, `LevelWriter` are 
 **Estimated scope:** M
 
 ### Checkpoint: Core library
-- [ ] Default + golden tests pass; no Qt Widgets, statics, or raw assimp allocation left.
+- [x] Default + golden tests pass; no Qt Widgets, statics, or raw assimp allocation left.
+  (fez_mode-777.23: no Qt Widgets use, no static state (only `static constexpr` constants and the static member
+  function `AssetRepository::defaultLoaders`). Every `aiMesh`/`aiMaterial`/`aiNode`/`aiScene` is owned by a
+  `std::unique_ptr` until it is handed to the scene; the remaining `new[]` in `SceneBuilder` are the member buffers
+  assimp's destructors free (vertices, faces, indices, node mesh lists, root node), which assimp requires.)
 - [ ] Human review.
 
 ### Task 24: Pipeline and `ConversionReport`

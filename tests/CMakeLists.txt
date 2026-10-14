@@ -22,7 +22,9 @@ add_executable(fez_tests
     unit/AssetRepositoryTests.cpp
     unit/ResolveLevelTests.cpp
     unit/SceneBuilderTests.cpp
-    unit/WriterTests.cpp
+    unit/SceneCompositionTests.cpp
+    unit/ObjExportTests.cpp
+    unit/TextureCopierTests.cpp
     unit/model_headers/ArtObjectHeader.cpp
     unit/model_headers/BackgroundPlaneHeader.cpp
     unit/model_headers/CharacterHeader.cpp
@@ -41,7 +43,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX tests
           unit/FaceDecodingTests.cpp unit/TexturedQuadTests.cpp unit/ImageTests.cpp unit/GeometryParserTests.cpp
           unit/ArtObjectParserTests.cpp unit/TrileSetParserTests.cpp unit/TextureParserTests.cpp
           unit/LevelReaderTests.cpp unit/AssetRepositoryTests.cpp unit/ResolveLevelTests.cpp unit/SceneBuilderTests.cpp
-          unit/WriterTests.cpp
+          unit/SceneCompositionTests.cpp unit/ObjExportTests.cpp unit/TextureCopierTests.cpp
           unit/model_headers/ArtObjectHeader.cpp unit/model_headers/BackgroundPlaneHeader.cpp
           unit/model_headers/CharacterHeader.cpp unit/model_headers/GeometryHeader.cpp
           unit/model_headers/LevelHeader.cpp unit/model_headers/LevelDescriptionHeader.cpp

@@ -1,11 +1,11 @@
 #include "Application.h"
 
+#include "export/ObjExport.h"
+#include "export/SceneComposition.h"
+#include "export/TextureCopier.h"
 #include "level/ResolveLevel.h"
 #include "parser/level/LevelReader.h"
 #include "repository/AssetRepository.h"
-
-#include "writer/GeometryWriter.h"
-#include "writer/LevelWriter.h"
 
 #include <QtCore/QCommandLineParser>
 #include <QtCore/QDirIterator>
@@ -14,6 +14,50 @@
 #include <QtCore/QTextStream>
 
 #include <QtConcurrent/QtConcurrentRun>
+
+namespace
+{
+
+void logExportError(const fez::Error& error)
+{
+    qWarning().noquote() << "Export failed:" << QString::fromStdString(error.message) << "-" << QString::fromStdString(error.source);
+}
+
+// Exports <dir>/<name>.obj/.mtl and, only when that succeeded, copies the scene's textures into dir (as the old
+// Writer::save). An export error is logged; the files of this scene are then missing from the output.
+void exportScene(const fez::ComposedScene& composed, const QString& dir, const QString& name, fez::TextureCopier& texture_copier)
+{
+    const auto exported = fez::exportObj(*composed.m_Scene, dir, name);
+
+    if(!exported)
+    {
+        logExportError(exported.error());
+        return;
+    }
+
+    for(const auto& texture : composed.m_Textures)
+        texture_copier.copy(texture.m_Source, dir + "/" + texture.m_Name);
+}
+
+// The output directory of one geometry export is created before its scene is built, as the old GeometryWriter's
+// constructor did (also when the geometry gets no mesh and nothing is exported).
+void exportGeometry(const fez::Geometry& geometry, const QString& dir, fez::TextureCopier& texture_copier)
+{
+    if(const auto created = fez::makeDirectory(dir); !created)
+    {
+        logExportError(created.error());
+        return;
+    }
+
+    const auto composed = fez::buildGeometryScene(geometry);
+
+    if(!composed)
+        return;
+
+    exportScene(*composed, dir, geometry.m_Name, texture_copier);
+}
+
+} // namespace
 
 void Application::onRun()
 {
@@ -53,15 +97,16 @@ void Application::onRun()
     }
 
     auto repository = fez::AssetRepository(input_path);
+    auto texture_copier = fez::TextureCopier();
 
-    processArtObjects(repository, input_path, output_path);
-    processTrileSets(repository, input_path, output_path);
-    processLevels(repository, input_path, output_path);
+    processArtObjects(repository, texture_copier, input_path, output_path);
+    processTrileSets(repository, texture_copier, input_path, output_path);
+    processLevels(repository, texture_copier, input_path, output_path);
 
     exit();
 }
 
-void Application::processArtObjects(fez::AssetRepository& repository, const QString& input_path, const QString& output_path)
+void Application::processArtObjects(fez::AssetRepository& repository, fez::TextureCopier& texture_copier, const QString& input_path, const QString& output_path)
 {
     auto ao_xml_iter = QDirIterator(input_path + "/art objects", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
@@ -71,7 +116,7 @@ void Application::processArtObjects(fez::AssetRepository& repository, const QStr
         art_objects_files.push_back(ao_xml_iter.next());
 
     // <input>/art objects/<complete base name>.xml is the file itself
-    const auto export_function = [&repository](const auto& file, const auto& path) -> void{
+    const auto export_function = [&repository, &texture_copier](const auto& file, const auto& path) -> void{
         const auto loaded = repository.artObject(QFileInfo(file).completeBaseName());
 
         if(!loaded)
@@ -81,7 +126,7 @@ void Application::processArtObjects(fez::AssetRepository& repository, const QStr
 
         qDebug() << "Write: " << result->m_Name;
 
-        fez::GeometryWriter(path + "/ao_export").writeObj(*result);
+        exportGeometry(*result, path + "/ao_export", texture_copier);
     };
 
     auto waiter = QFutureSynchronizer<void>();
@@ -92,7 +137,7 @@ void Application::processArtObjects(fez::AssetRepository& repository, const QStr
     waiter.waitForFinished();
 }
 
-void Application::processTrileSets(fez::AssetRepository& repository, const QString& input_path, const QString& output_path)
+void Application::processTrileSets(fez::AssetRepository& repository, fez::TextureCopier& texture_copier, const QString& input_path, const QString& output_path)
 {
     auto ts_xml_iter = QDirIterator(input_path + "/trile sets", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
@@ -102,7 +147,7 @@ void Application::processTrileSets(fez::AssetRepository& repository, const QStri
         trile_set_files.push_back(ts_xml_iter.next());
 
     // <input>/trile sets/<complete base name>.xml is the file itself
-    const auto export_function = [&repository](const auto& file, const auto& path) -> void {
+    const auto export_function = [&repository, &texture_copier](const auto& file, const auto& path) -> void {
         const auto loaded = repository.trileSet(QFileInfo(file).completeBaseName());
 
         if(!loaded)
@@ -114,7 +159,7 @@ void Application::processTrileSets(fez::AssetRepository& repository, const QStri
         {
             qDebug() << "Write: " << r.second.m_Name;
 
-            fez::GeometryWriter(path + "/ts_export/" + trile_set->m_Name).writeObj(r.second);
+            exportGeometry(r.second, path + "/ts_export/" + trile_set->m_Name, texture_copier);
         }
     };
 
@@ -126,7 +171,7 @@ void Application::processTrileSets(fez::AssetRepository& repository, const QStri
     waiter.waitForFinished();
 }
 
-void Application::processLevels(fez::AssetRepository& repository, const QString& input_path, const QString& output_path)
+void Application::processLevels(fez::AssetRepository& repository, fez::TextureCopier& texture_copier, const QString& input_path, const QString& output_path)
 {
     auto lvl_xml_iter = QDirIterator(input_path + "/levels", {"*.xml"}, QDir::Filter::Files | QDir::Filter::NoDotAndDotDot | QDir::Filter::NoSymLinks);
 
@@ -135,7 +180,7 @@ void Application::processLevels(fez::AssetRepository& repository, const QString&
     while(lvl_xml_iter.hasNext())
         level_files.push_back(lvl_xml_iter.next());
 
-    const auto export_function = [&repository](const auto& file, const auto& path) -> void {
+    const auto export_function = [&repository, &texture_copier](const auto& file, const auto& path) -> void {
         // parseLevel logs "parsing:" and XML syntax errors; any failure skips the level (no output, as before)
         const auto description = fez::parseLevel(file);
 
@@ -147,7 +192,7 @@ void Application::processLevels(fez::AssetRepository& repository, const QString&
         if(!level)
             return;
 
-        fez::LevelWriter(path + "/lv_export/" + level->m_LevelName).writeLevel(*level);
+        exportScene(fez::buildLevelScene(*level), path + "/lv_export/" + level->m_LevelName, level->m_LevelName, texture_copier);
     };
 
     auto waiter = QFutureSynchronizer<void>();
@@ -158,5 +203,5 @@ void Application::processLevels(fez::AssetRepository& repository, const QString&
     waiter.waitForFinished();
 
     /*const auto level = resolveLevel(*parseLevel("Z:/fez_data/export/levels/villageville_2d.xml"), repository);
-    LevelWriter("Z:/fez_data/export/lv_export/" + level->m_LevelName).writeLevel(*level);*/
+    exportScene(buildLevelScene(*level), "Z:/fez_data/export/lv_export/" + level->m_LevelName, level->m_LevelName, texture_copier);*/
 }

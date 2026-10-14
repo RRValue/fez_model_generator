@@ -3,8 +3,14 @@
 
 set(FEZ_CORE_SOURCES
     error/Error.h
+    export/ObjExport.cpp
+    export/ObjExport.h
     export/SceneBuilder.cpp
     export/SceneBuilder.h
+    export/SceneComposition.cpp
+    export/SceneComposition.h
+    export/TextureCopier.cpp
+    export/TextureCopier.h
     export/Transforms.cpp
     export/Transforms.h
     format/QStringFormatter.h
@@ -44,12 +50,6 @@ set(FEZ_CORE_SOURCES
     parser/TrileSetParser.h
     repository/AssetRepository.cpp
     repository/AssetRepository.h
-    writer/GeometryWriter.cpp
-    writer/GeometryWriter.h
-    writer/LevelWriter.cpp
-    writer/LevelWriter.h
-    writer/Writer.cpp
-    writer/Writer.h
     xml/Xml.cpp
     xml/Xml.h
 )
