@@ -1445,9 +1445,19 @@ id −1 represents in the FEZ data and document it at the skip site.
 **Description:** Rename the inverted `pos_*`/`neg_*` identifiers; values unchanged.
 
 **Acceptance criteria:**
-- [ ] Existing face decoding tests unchanged and passing; no golden change.
+- [x] Existing face decoding tests unchanged and passing; no golden change.
 
 **Verification:** `fez_tests.exe "[geometry]"`; golden passes.
+
+**Implementation notes (fez_mode-777.31):**
+- The misnamed constants themselves had already disappeared in Task 11 (`decodeFaceNormal` returned literals). This
+  task puts named constants back with names that match their direction: old `pos_x` (-1,0,0) → `negX`, `pos_y`
+  (0,-1,0) → `negY`, `pos_z` (0,0,-1) → `negZ`, `neg_x` (1,0,0) → `posX`, `neg_y` (0,1,0) → `posY`, `neg_z` (0,0,1) →
+  `posZ` (file-local `const Vec3f` in an anonymous namespace in `FaceDecoding.cpp`). Side→vector mapping unchanged.
+- `tests/unit/FaceDecodingTests.cpp` left unchanged (its comment still mentions the old names).
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[geometry]"` passed (14 test cases / 63
+  assertions); `ctest --preset windows-debug` 200/200; `ctest --preset windows-release-golden` passed against
+  `golden/v3` (557 s).
 
 **Dependencies:** Task 27
 
