@@ -1115,7 +1115,7 @@ no-overwrite semantics as today). `Writer`, `GeometryWriter`, `LevelWriter` are 
   function `AssetRepository::defaultLoaders`). Every `aiMesh`/`aiMaterial`/`aiNode`/`aiScene` is owned by a
   `std::unique_ptr` until it is handed to the scene; the remaining `new[]` in `SceneBuilder` are the member buffers
   assimp's destructors free (vertices, faces, indices, node mesh lists, root node), which assimp requires.)
-- [ ] Human review.
+- [x] Human review.
 
 ### Task 24: Pipeline and `ConversionReport`
 
