@@ -6,6 +6,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <QtCore/QFile>
 #include <QtCore/QString>
 #include <QtCore/QTemporaryDir>
 
@@ -276,17 +277,49 @@ TEST_CASE("SceneBuilder: an opacity texture only for planes with translucent pix
     CHECK(textureOf(*scene->mMaterials[2], aiTextureType_OPACITY) == "<none>");
 }
 
-TEST_CASE("SceneBuilder: a plane whose texture cannot be loaded gives no id", "[export]")
+TEST_CASE("SceneBuilder: a plane whose texture is missing gives an error and adds no mesh and no material", "[export]")
 {
     fez::SceneBuilder builder;
+    REQUIRE(builder.addMesh(triangle("first")) == 0u);
+
     const auto id = builder.addMesh(plane("Z:/does/not/exist/plane.png"));
     REQUIRE_FALSE(id.has_value());
     CHECK(id.error().kind == fez::ErrorKind::FileNotFound);
+    CHECK(id.error().source == "Z:/does/not/exist/plane.png");
+
+    // nothing was allocated for the plane: the next mesh gets the next free id
+    REQUIRE(builder.addMesh(triangle("last")) == 1u);
 
     const auto scene = builder.build();
-    REQUIRE(scene->mNumMeshes == 1);
-    REQUIRE(scene->mNumMaterials == 1);
-    CHECK(materialName(*scene->mMaterials[0]) == "plane.png");
+    REQUIRE(scene->mNumMeshes == 2);
+    REQUIRE(scene->mNumMaterials == 2);
+    CHECK(scene->mMeshes[0]->mName == aiString("first"));
+    CHECK(scene->mMeshes[1]->mName == aiString("last"));
+    CHECK(materialName(*scene->mMaterials[0]) == "tex.png");
+    CHECK(materialName(*scene->mMaterials[1]) == "tex.png");
+}
+
+TEST_CASE("SceneBuilder: a plane whose texture cannot be decoded gives an Io error and adds nothing", "[export]")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+
+    const auto broken = dir.filePath("broken.png");
+    {
+        QFile file(broken);
+        REQUIRE(file.open(QIODevice::WriteOnly));
+        REQUIRE(file.write("not a png") == 9);
+    }
+
+    fez::SceneBuilder builder;
+    const auto id = builder.addMesh(plane(broken));
+    REQUIRE_FALSE(id.has_value());
+    CHECK(id.error().kind == fez::ErrorKind::Io);
+    CHECK(id.error().source == broken.toStdString());
+
+    const auto scene = builder.build();
+    CHECK(scene->mNumMeshes == 0);
+    CHECK(scene->mNumMaterials == 0);
 }
 
 TEST_CASE("SceneBuilder: nodes keep their order, name, mesh and transform", "[export]")

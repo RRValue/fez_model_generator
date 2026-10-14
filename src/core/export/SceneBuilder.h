@@ -18,6 +18,10 @@ struct aiNode;
 namespace fez
 {
 
+// True when the geometry has no vertices or no faces. Such geometry is normal FEZ data (e.g. empty triles) and gets
+// no mesh; SceneBuilder::addMesh rejects it.
+bool isEmptyGeometry(const Geometry& geometry);
+
 // Collects meshes, materials and nodes for one OBJ export and hands them to a complete aiScene in build().
 // Every addMesh call for non-empty geometry adds exactly one mesh and one material (no deduplication); the OBJ
 // exporter writes every material to the .mtl file, so the number of calls decides the output.
@@ -33,10 +37,10 @@ public:
     SceneBuilder& operator=(const SceneBuilder&) = delete;
 
     // Adds one mesh and one material for the geometry and returns the mesh id (= material index).
-    // Errors:
-    //  - BadValue when the geometry has no vertices or no faces; nothing is added.
-    //  - FileNotFound when the geometry is a plane whose texture file cannot be loaded; the (complete) mesh and
-    //    material are still kept (kept behavior), they just get no id.
+    // Errors (nothing is added in either case, so the next mesh gets the next free id):
+    //  - BadValue when the geometry has no vertices or no faces (isEmptyGeometry).
+    //  - FileNotFound when the geometry is a plane whose texture file does not exist, Io when it exists but cannot be
+    //    read as an image (source: the texture file).
     std::expected<MeshId, Error> addMesh(const Geometry& geometry);
 
     // Adds a child of the root node showing one mesh.

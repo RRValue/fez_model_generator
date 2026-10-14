@@ -238,6 +238,33 @@ TEST_CASE("Pipeline: a level whose art object fails is reported with the reposit
     CHECK_FALSE(QFileInfo::exists(mini.m_Output.path() + "/lv_export"));
 }
 
+TEST_CASE("Pipeline: a level whose plane texture cannot be loaded is reported and not exported", "[pipeline][export]")
+{
+    MiniCopy mini;
+
+    // an animated plane texture is only checked for existence when the level is resolved; the scene builder loads it
+    writeFile(mini.input("background planes/mini_anim.ani.png"), "not a png");
+
+    const auto reports = convertAll(mini.m_Input.path(), mini.m_Output.path());
+
+    requireAllOk(reports.m_ArtObjects);
+    requireAllOk(reports.m_TrileSets);
+
+    INFO(describe(reports.m_Levels));
+    REQUIRE(fileNames(reports.m_Levels) == QStringList{"mini.xml"});
+    CHECK(reports.m_Levels.failureCount() == 1);
+    REQUIRE(reports.m_Levels.m_Files.at(0).m_Errors.size() == 1);
+
+    const auto& error = reports.m_Levels.m_Files.at(0).m_Errors.front();
+    CHECK(error.kind == fez::ErrorKind::Io);
+    CHECK(QFileInfo(QString::fromStdString(error.source)) == QFileInfo(mini.input("background planes/mini_anim.ani.png")));
+
+    // a failing level produces no output, as for any other level error
+    requireTree(fez::testing::testDataPath("mini_expected/ao_export"), mini.m_Output.path() + "/ao_export");
+    requireTree(fez::testing::testDataPath("mini_expected/ts_export"), mini.m_Output.path() + "/ts_export");
+    CHECK_FALSE(QFileInfo::exists(mini.m_Output.path() + "/lv_export"));
+}
+
 TEST_CASE("Pipeline: export errors are reported per file", "[pipeline]")
 {
     MiniCopy mini;

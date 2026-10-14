@@ -67,7 +67,8 @@ ExportResult exportScene(const ComposedScene& composed, const QString& dir, cons
 }
 
 // The output directory of one geometry export is created before its scene is built, as the old GeometryWriter's
-// constructor did (also when the geometry gets no mesh and nothing is exported).
+// constructor did (also when the geometry is empty and nothing is exported). A scene error (a plane texture that
+// cannot be loaded) is returned.
 ExportResult exportGeometry(const Geometry& geometry, const QString& dir, TextureCopier& texture_copier)
 {
     if(auto created = makeDirectory(dir); !created)
@@ -76,9 +77,12 @@ ExportResult exportGeometry(const Geometry& geometry, const QString& dir, Textur
     const auto composed = buildGeometryScene(geometry);
 
     if(!composed)
+        return std::unexpected(composed.error());
+
+    if(!composed->has_value())
         return {};
 
-    return exportScene(*composed, dir, geometry.m_Name, texture_copier);
+    return exportScene(**composed, dir, geometry.m_Name, texture_copier);
 }
 
 // Converts every file of dir with convert_one(file, report) on a pool of options.m_Jobs threads; one FileReport per
@@ -192,9 +196,18 @@ ConversionReport convertLevels(const QString& input, const QString& output, Asse
             return;
         }
 
+        // a scene error (a plane or NPC texture that cannot be loaded) fails the level before anything is written
+        const auto composed = buildLevelScene(*level);
+
+        if(!composed)
+        {
+            report.m_Errors.push_back(composed.error());
+            return;
+        }
+
         const auto dir = output + "/lv_export/" + level->m_LevelName;
 
-        if(const auto exported = exportScene(buildLevelScene(*level), dir, level->m_LevelName, texture_copier); !exported)
+        if(const auto exported = exportScene(*composed, dir, level->m_LevelName, texture_copier); !exported)
             report.m_Errors.push_back(exported.error());
     });
 }

@@ -2,6 +2,7 @@
 
 #include "export/SceneBuilder.h"
 #include "export/Transforms.h"
+#include "log/Log.h"
 
 #include <assimp/scene.h>
 
@@ -15,17 +16,25 @@ namespace
 class Composer
 {
 public:
-    // One mesh, one material and one node per instance (no deduplication); no node and no texture when the mesh gets
-    // no id.
-    void addInstance(const Geometry& geometry, const QString& name, const Transform& transform)
+    // One mesh, one material and one node per instance (no deduplication). Empty geometry is skipped without an
+    // error (nothing added); an addMesh error is returned (nothing added either).
+    std::expected<void, Error> addInstance(const Geometry& geometry, const QString& name, const Transform& transform)
     {
+        if(isEmptyGeometry(geometry))
+        {
+            log::debug("Skip empty geometry: {} ({})", name, geometry.m_Name);
+            return {};
+        }
+
         const auto mesh_id = m_Builder.addMesh(geometry);
 
         if(!mesh_id)
-            return;
+            return std::unexpected(mesh_id.error());
 
         m_Textures.push_back({.m_Source = geometry.m_Texture.m_TextureOrgFile, .m_Name = geometry.m_Texture.m_TextureName});
         m_Builder.addNode(name, transform, *mesh_id);
+
+        return {};
     }
 
     // every node has exactly one texture entry
@@ -51,10 +60,12 @@ void SceneDeleter::operator()(aiScene* scene) const noexcept
     delete scene;
 }
 
-std::optional<ComposedScene> buildGeometryScene(const Geometry& geometry)
+std::expected<std::optional<ComposedScene>, Error> buildGeometryScene(const Geometry& geometry)
 {
     Composer composer;
-    composer.addInstance(geometry, {}, Transform{});
+
+    if(auto added = composer.addInstance(geometry, {}, Transform{}); !added)
+        return std::unexpected(std::move(added.error()));
 
     if(!composer.hasNodes())
         return std::nullopt;
@@ -62,7 +73,7 @@ std::optional<ComposedScene> buildGeometryScene(const Geometry& geometry)
     return composer.finish();
 }
 
-ComposedScene buildLevelScene(const Level& level)
+std::expected<ComposedScene, Error> buildLevelScene(const Level& level)
 {
     Composer composer;
 
@@ -73,8 +84,10 @@ ComposedScene buildLevelScene(const Level& level)
         if(ao_geom_find_iter == level.m_ArtObjectGeometries.cend())
             continue;
 
-        composer.addInstance(ao_geom_find_iter->second, ao.m_Name,
-                             {.m_Position = withLevelObjectOffset(ao.m_Position), .m_Rotation = ao.m_Rotation, .m_Scale = ao.m_Scale});
+        if(auto added = composer.addInstance(ao_geom_find_iter->second, ao.m_Name,
+                                             {.m_Position = withLevelObjectOffset(ao.m_Position), .m_Rotation = ao.m_Rotation, .m_Scale = ao.m_Scale});
+           !added)
+            return std::unexpected(std::move(added.error()));
     }
 
     for(const auto& te : level.m_TrileEmplacements)
@@ -84,16 +97,25 @@ ComposedScene buildLevelScene(const Level& level)
         if(trile_geom_find_iter == level.m_TrileGeometries.cend())
             continue;
 
-        composer.addInstance(trile_geom_find_iter->second, QString::number(te.m_Id),
-                             {.m_Position = te.m_Position, .m_Rotation = trileOrientation(te.m_Orientation)});
+        if(auto added = composer.addInstance(trile_geom_find_iter->second, QString::number(te.m_Id),
+                                             {.m_Position = te.m_Position, .m_Rotation = trileOrientation(te.m_Orientation)});
+           !added)
+            return std::unexpected(std::move(added.error()));
     }
 
     for(const auto& bp : level.m_BackgroundPlanes)
-        composer.addInstance(bp.m_Geometry, bp.m_Name,
-                             {.m_Position = withLevelObjectOffset(bp.m_Position), .m_Rotation = bp.m_Rotation, .m_Scale = bp.m_Scale});
+    {
+        if(auto added = composer.addInstance(bp.m_Geometry, bp.m_Name,
+                                             {.m_Position = withLevelObjectOffset(bp.m_Position), .m_Rotation = bp.m_Rotation, .m_Scale = bp.m_Scale});
+           !added)
+            return std::unexpected(std::move(added.error()));
+    }
 
     for(const auto& car : level.m_Characters)
-        composer.addInstance(car.m_Geometry, car.m_Name, {.m_Position = car.m_Position});
+    {
+        if(auto added = composer.addInstance(car.m_Geometry, car.m_Name, {.m_Position = car.m_Position}); !added)
+            return std::unexpected(std::move(added.error()));
+    }
 
     return composer.finish();
 }

@@ -65,8 +65,10 @@ bool sameMatrix(const aiMatrix4x4& a, const aiMatrix4x4& b)
 
 TEST_CASE("buildGeometryScene: one mesh and one unnamed node at the origin", "[export][scene]")
 {
-    const auto composed = fez::buildGeometryScene(triangle("ao", "ao.png"));
+    const auto result = fez::buildGeometryScene(triangle("ao", "ao.png"));
+    REQUIRE(result.has_value());
 
+    const auto& composed = *result;
     REQUIRE(composed.has_value());
     REQUIRE(composed->m_Scene != nullptr);
 
@@ -88,7 +90,22 @@ TEST_CASE("buildGeometryScene: nothing to export for a geometry without faces", 
     auto geometry = triangle("empty", "empty.png");
     geometry.m_Indices.clear();
 
-    CHECK_FALSE(fez::buildGeometryScene(geometry).has_value());
+    // empty geometry is normal data, not an error: no scene and no error
+    const auto result = fez::buildGeometryScene(geometry);
+    REQUIRE(result.has_value());
+    CHECK_FALSE(result->has_value());
+}
+
+TEST_CASE("buildGeometryScene: a plane whose texture cannot be loaded is an error", "[export][scene]")
+{
+    auto geometry = triangle("plane", "plane.png");
+    geometry.m_IsPlane = true;
+    geometry.m_Texture.m_TextureOrgFile = "Z:/does/not/exist/plane.png";
+
+    const auto result = fez::buildGeometryScene(geometry);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().kind == fez::ErrorKind::FileNotFound);
+    CHECK(result.error().source == "Z:/does/not/exist/plane.png");
 }
 
 TEST_CASE("buildLevelScene: art objects, triles, planes and NPCs in this order", "[export][scene]")
@@ -119,7 +136,9 @@ TEST_CASE("buildLevelScene: art objects, triles, planes and NPCs in this order",
     npc.m_Geometry = triangle("npc/idle.ani.png", "npc/idle.ani.png");
     level.m_Characters.push_back(npc);
 
-    const auto composed = fez::buildLevelScene(level);
+    const auto result = fez::buildLevelScene(level);
+    REQUIRE(result.has_value());
+    const auto& composed = *result;
     REQUIRE(composed.m_Scene != nullptr);
     const auto& scene = *composed.m_Scene;
 
@@ -178,7 +197,10 @@ TEST_CASE("buildLevelScene: an instance with empty geometry adds no mesh, no nod
     level.m_BackgroundPlanes.push_back(plane);
     level.m_Characters.push_back(npc);
 
-    const auto composed = fez::buildLevelScene(level);
+    // empty geometry is normal data (e.g. empty triles): skipped without an error
+    const auto result = fez::buildLevelScene(level);
+    REQUIRE(result.has_value());
+    const auto& composed = *result;
     const auto& scene = *composed.m_Scene;
 
     // the empty plane adds no mesh and no material (Task 29)
@@ -197,10 +219,38 @@ TEST_CASE("buildLevelScene: an empty level gives a scene without meshes", "[expo
     fez::Level level;
     level.m_LevelName = "EMPTY";
 
-    const auto composed = fez::buildLevelScene(level);
+    const auto result = fez::buildLevelScene(level);
+    REQUIRE(result.has_value());
+    const auto& composed = *result;
 
     REQUIRE(composed.m_Scene != nullptr);
     CHECK(composed.m_Scene->mNumMeshes == 0);
     CHECK(composed.m_Scene->mRootNode->mNumChildren == 0);
     CHECK(composed.m_Textures.empty());
+}
+
+TEST_CASE("buildLevelScene: a plane whose texture cannot be loaded fails the level", "[export][scene]")
+{
+    fez::Level level;
+    level.m_LevelName = "LEVEL";
+
+    level.m_TrileGeometries.emplace(7, triangle("7", "set.png"));
+    level.m_TrileEmplacements.push_back({.m_Id = 7, .m_Position = {4.0f, 5.0f, 6.0f}});
+
+    fez::BackgroundPlane plane;
+    plane.m_Name = "plane";
+    plane.m_Geometry = triangle("plane.png", "plane.png");
+    plane.m_Geometry.m_IsPlane = true;
+    plane.m_Geometry.m_Texture.m_TextureOrgFile = "Z:/does/not/exist/plane.png";
+    level.m_BackgroundPlanes.push_back(plane);
+
+    fez::Character npc;
+    npc.m_Name = "npc";
+    npc.m_Geometry = triangle("npc.png", "npc.png");
+    level.m_Characters.push_back(npc);
+
+    const auto result = fez::buildLevelScene(level);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().kind == fez::ErrorKind::FileNotFound);
+    CHECK(result.error().source == "Z:/does/not/exist/plane.png");
 }

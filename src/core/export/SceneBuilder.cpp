@@ -2,6 +2,8 @@
 
 #include "geometry/Image.h"
 
+#include <QtCore/QFileInfo>
+
 #include <QtGui/QImage>
 
 #include <assimp/material.h>
@@ -35,6 +37,11 @@ T** releaseAll(std::vector<std::unique_ptr<T>>& owned, unsigned int& count)
 
 } // namespace
 
+bool isEmptyGeometry(const Geometry& geometry)
+{
+    return geometry.m_Vertices.empty() || geometry.m_Indices.size() / 3 == 0;
+}
+
 SceneBuilder::SceneBuilder() = default;
 
 SceneBuilder::~SceneBuilder() = default;
@@ -50,6 +57,25 @@ std::expected<SceneBuilder::MeshId, Error> SceneBuilder::addMesh(const Geometry&
 
     if(num_faces == 0)
         return std::unexpected(Error{ErrorKind::BadValue, "geometry has no faces", geometry.m_Name.toStdString()});
+
+    // a plane's texture is loaded before anything is allocated: it decides the opacity texture, and a plane whose
+    // texture cannot be loaded gets no mesh and no material
+    bool translucent = false;
+
+    if(geometry.m_IsPlane)
+    {
+        const auto& texture_file = geometry.m_Texture.m_TextureOrgFile;
+
+        if(!QFileInfo(texture_file).isFile())
+            return std::unexpected(Error{ErrorKind::FileNotFound, "plane texture not found", texture_file.toStdString()});
+
+        const QImage texture(texture_file);
+
+        if(texture.isNull())
+            return std::unexpected(Error{ErrorKind::Io, "plane texture cannot be read", texture_file.toStdString()});
+
+        translucent = hasTranslucentPixels(texture);
+    }
 
     // one mesh and one material per call
     const auto mesh_id = static_cast<MeshId>(m_Meshes.size());
@@ -108,21 +134,12 @@ std::expected<SceneBuilder::MeshId, Error> SceneBuilder::addMesh(const Geometry&
     material->AddProperty(&opacity, 1, AI_MATKEY_OPACITY);
     material->AddProperty(&double_sided, 1, AI_MATKEY_TWOSIDED);
 
-    // test on transparency
-    if(geometry.m_IsPlane)
+    // only planes with translucent pixels get an opacity texture
+    if(translucent)
     {
-        QImage texture(geometry.m_Texture.m_TextureOrgFile);
+        aiString opacity_texture_filename(geometry.m_Texture.m_TextureName.toStdString());
 
-        if(texture.isNull())
-            return std::unexpected(Error{ErrorKind::FileNotFound, "plane texture cannot be loaded",
-                                         geometry.m_Texture.m_TextureOrgFile.toStdString()});
-
-        if(hasTranslucentPixels(texture))
-        {
-            aiString opacity_texture_filename(geometry.m_Texture.m_TextureName.toStdString());
-
-            material->AddProperty(&opacity_texture_filename, AI_MATKEY_TEXTURE_OPACITY(0));
-        }
+        material->AddProperty(&opacity_texture_filename, AI_MATKEY_TEXTURE_OPACITY(0));
     }
 
     mesh->mMaterialIndex = material_index;

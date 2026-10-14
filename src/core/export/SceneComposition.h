@@ -1,10 +1,12 @@
 #pragma once
 
+#include "error/Error.h"
 #include "model/Geometry.h"
 #include "model/Level.h"
 
 #include <QtCore/QString>
 
+#include <expected>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -37,15 +39,18 @@ struct ComposedScene
     std::vector<TextureFile> m_Textures;
 };
 
-// One mesh with one unnamed node at the origin (art objects, triles). No scene (nothing to export) when the mesh gets
-// no id (see SceneBuilder::addMesh).
-std::optional<ComposedScene> buildGeometryScene(const Geometry& geometry);
+// One mesh with one unnamed node at the origin (art objects, triles). No scene (nothing to export, not an error) for
+// empty geometry (isEmptyGeometry). Error: the SceneBuilder::addMesh error otherwise (a plane whose texture cannot be
+// loaded).
+std::expected<std::optional<ComposedScene>, Error> buildGeometryScene(const Geometry& geometry);
 
 // One mesh, material and node per instance, in this order: art objects (skipped without geometry; position with
 // levelObjectOffset), trile emplacements (skipped without geometry, e.g. id -1; node named after the id, rotation
-// trileOrientation), background planes (levelObjectOffset), NPCs (position only). An instance whose mesh gets no id
-// gets no node and no texture entry (empty geometry adds no mesh and material either; a plane whose texture cannot be
-// loaded keeps them). Always gives a scene, also for an empty level.
-ComposedScene buildLevelScene(const Level& level);
+// trileOrientation), background planes (levelObjectOffset), NPCs (position only). An instance with empty geometry
+// (isEmptyGeometry; normal FEZ data, e.g. empty triles) is skipped silently: no mesh, material, node or texture entry.
+// Gives a scene also for an empty level. Error: the first SceneBuilder::addMesh error (a plane or NPC whose texture
+// cannot be loaded, FileNotFound or Io with the texture file as source); the level then gets no scene at all, as for
+// any other level error.
+std::expected<ComposedScene, Error> buildLevelScene(const Level& level);
 
 } // namespace fez

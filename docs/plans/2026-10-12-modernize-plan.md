@@ -1607,6 +1607,43 @@ the trile instances in `Groups/TrileGroup` need no export.
 - Checks: Debug and Release build (no warnings); `fez_tests.exe "[level]"` 34 test cases / 552 assertions passed;
   `ctest --preset windows-debug` 209/209; `ctest --preset windows-release-golden` passed against `golden/v4` (556 s).
 
+### fez_mode-777.37: Unloadable plane texture; addMesh errors reported
+
+**Description:** A plane whose texture could not be loaded still added a complete mesh and material without an id (an
+unreferenced named material in the level `.mtl`), and the `addMesh` errors were dropped by `SceneComposition`.
+Allocate nothing on failure and report the errors; empty geometry stays a silent skip (coordinator decision: it is
+normal FEZ data, e.g. 521 overlapped instances use empty triles).
+
+**Implementation notes (fez_mode-777.37):**
+- `SceneBuilder::addMesh` loads a plane's texture **before** allocating anything; on failure no mesh and no material
+  are added (the next mesh gets the next free id). Errors: `FileNotFound` "plane texture not found" when the file does
+  not exist, `Io` "plane texture cannot be read" when it exists but is no readable image (as `loadTexture` for static
+  textures); source is the texture file. Before, both were `FileNotFound`. Empty geometry still gives `BadValue`
+  (builder contract); the new free function `isEmptyGeometry(const Geometry&)` (no vertices or no faces) names the
+  check.
+- `SceneComposition`: `Composer::addInstance` skips empty geometry itself (only a `log::debug` "Skip empty geometry"
+  line, no error) and returns any `addMesh` error. `buildGeometryScene` now returns
+  `std::expected<std::optional<ComposedScene>, Error>` (no scene for empty geometry, an error otherwise) and
+  `buildLevelScene` `std::expected<ComposedScene, Error>` (the first error stops the composition).
+- **Failure handling:** a level with an unloadable plane (or NPC) texture **fails as a whole and gets no output**, like
+  every other level failure (missing section, failed asset, see Architecture Decisions "Byte-identity includes which
+  files exist"): `convertLevels` builds the scene before the level directory is created, so nothing is written; the
+  error lands in the level's `FileReport`, so the run exits 1. Exporting the level without that plane was rejected:
+  it would make a partial level look like a converted one. `exportGeometry` (art objects, triles) reports the error
+  the same way (not reachable with real data: art objects and triles are no planes).
+- Tests: `[export]` the unloadable plane test now asserts no mesh/material and the next free id (missing file →
+  `FileNotFound` with the path), plus a new undecodable-file case (`Io`, nothing added). `[export][scene]`:
+  `buildGeometryScene` empty geometry → value without a scene (no error); plane with a missing texture → error;
+  `buildLevelScene` plane with a missing texture between a trile and an NPC → `FileNotFound` with the path; the empty
+  geometry case asserts no error. `[pipeline][export]`: `mini_anim.ani.png` overwritten with junk (an animated texture
+  is only checked for existence while resolving) → the level reports exactly one `Io` error with that file as source,
+  no `lv_export`, art objects and trile sets equal `mini_expected`. The SceneBuilder and pipeline tests were seen
+  failing against the old code (3 cases / 6 assertions), the composition tests failed to compile.
+- `mini_expected` unchanged. Real data: every plane texture loads (Task 32), so no output change expected; see checks.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[export],[pipeline]"` 50 test cases / 711 assertions
+  passed; `ctest --preset windows-debug` 213/213; `ctest --preset windows-release-golden` passed against
+  `golden/v4` (524 s). **No output change, no `v5`.**
+
 ---
 
 ## Parallelization
