@@ -1,18 +1,17 @@
 #include "parser/ArtObjectParser.h"
 
+#include "log/Log.h"
 #include "parser/GeometryParser.h"
 #include "xml/Xml.h"
 
 #include <QtCore/QFileInfo>
-
-#include <qdebug.h>
 
 namespace fez
 {
 
 std::expected<Geometry, Error> parseArtObject(const QString& path)
 {
-    qDebug() << "parsing: " << path;
+    log::debug("parsing: {}", path);
 
     const QFileInfo info(path);
     const auto name = info.baseName();
@@ -23,7 +22,7 @@ std::expected<Geometry, Error> parseArtObject(const QString& path)
     if(!document)
     {
         if(document.error().kind == ErrorKind::XmlSyntax)
-            qDebug() << "Error: \"" + QString::fromStdString(document.error().message) + "\" at " + QString::fromStdString(document.error().source);
+            log::debug("Error: \"{}\" at {}", document.error().message, document.error().source);
 
         return std::unexpected(document.error());
     }

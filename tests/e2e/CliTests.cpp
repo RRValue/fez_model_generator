@@ -211,3 +211,38 @@ TEST_CASE("CLI: a corrupted asset gives exit code 1 and is listed in the summary
     // every other asset still converts
     requireTree(fez::testing::testDataPath("mini_expected"), mini.m_Output.path());
 }
+
+TEST_CASE("CLI: without --verbose a successful run prints only the summary", "[cli][e2e][log]")
+{
+    MiniCopy mini;
+
+    const auto result = runConverter(mini.arguments());
+    CHECK(result.m_ExitCode == 0);
+
+    CHECK(result.m_Output == "Art objects: 1 of 1 converted, 0 failed\n"
+                             "Trile sets: 1 of 1 converted, 0 failed\n"
+                             "Levels: 1 of 1 converted, 0 failed\n");
+}
+
+TEST_CASE("CLI: --verbose adds whole debug lines from parallel workers", "[cli][e2e][log]")
+{
+    MiniCopy mini;
+
+    const auto result = runConverter(mini.arguments({"--jobs", "4", "--verbose"}));
+    CHECK(result.m_ExitCode == 0);
+
+    CHECK(result.m_Output.contains("parsing: "));
+    CHECK(result.m_Output.contains("Write: "));
+    CHECK(result.m_Output.endsWith("Art objects: 1 of 1 converted, 0 failed\n"
+                                   "Trile sets: 1 of 1 converted, 0 failed\n"
+                                   "Levels: 1 of 1 converted, 0 failed\n"));
+
+    // every line is one whole message
+    const auto lines = result.m_Output.split('\n', Qt::SkipEmptyParts);
+    for(const auto& line : lines)
+    {
+        INFO("line: " << toStd(line));
+        CHECK((line.startsWith("parsing: ") || line.startsWith("trile: ") || line.startsWith("Write: ") ||
+               line.endsWith(" converted, 0 failed")));
+    }
+}

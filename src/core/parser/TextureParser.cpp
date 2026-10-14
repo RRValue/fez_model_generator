@@ -1,12 +1,11 @@
 #include "parser/TextureParser.h"
 
+#include "log/Log.h"
 #include "xml/Xml.h"
 
 #include <QtCore/QFile>
 
 #include <QtGui/QImage>
-
-#include <qdebug.h>
 
 #include <utility>
 
@@ -64,7 +63,7 @@ std::expected<AnimatedTexture, Error> parseAnimatedTexture(const QString& path)
     if(!document)
     {
         if(document.error().kind == ErrorKind::XmlSyntax)
-            qDebug() << "Error: \"" + QString::fromStdString(document.error().message) + "\" at " + QString::fromStdString(document.error().source);
+            log::debug("Error: \"{}\" at {}", document.error().message, document.error().source);
 
         return std::unexpected(document.error());
     }
@@ -125,7 +124,7 @@ std::expected<AnimatedTexture, Error> parseAnimatedTexture(const QString& path)
 
 std::expected<Texture, Error> loadTexture(const QString& dir, const QString& name, bool animated)
 {
-    qDebug() << "parsing: " << dir << "/" << name;
+    log::debug("parsing: {}/{}", dir, name);
 
     Texture result;
 

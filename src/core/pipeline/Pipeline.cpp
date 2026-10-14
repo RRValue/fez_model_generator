@@ -4,10 +4,10 @@
 #include "export/SceneComposition.h"
 #include "export/TextureCopier.h"
 #include "level/ResolveLevel.h"
+#include "log/Log.h"
 #include "parser/level/LevelReader.h"
 #include "repository/AssetRepository.h"
 
-#include <QtCore/QDebug>
 #include <QtCore/QDir>
 #include <QtCore/QDirIterator>
 #include <QtCore/QFileInfo>
@@ -130,7 +130,7 @@ ConversionReport convertArtObjects(const QString& input, const QString& output, 
 
         const auto& result = *loaded;
 
-        qDebug() << "Write: " << result->m_Name;
+        log::debug("Write: {}", result->m_Name);
 
         if(const auto exported = exportGeometry(*result, output + "/ao_export", texture_copier); !exported)
             report.m_Errors.push_back(exported.error());
@@ -155,7 +155,7 @@ ConversionReport convertTrileSets(const QString& input, const QString& output, A
 
         for(const auto& r : trile_set->m_Triles)
         {
-            qDebug() << "Write: " << r.second.m_Name;
+            log::debug("Write: {}", r.second.m_Name);
 
             if(const auto exported = exportGeometry(r.second, output + "/ts_export/" + trile_set->m_Name, texture_copier); !exported)
                 report.m_Errors.push_back(exported.error());

@@ -1,9 +1,8 @@
 #include "parser/level/LevelReader.h"
 
+#include "log/Log.h"
 #include "parser/level/LevelSections.h"
 #include "xml/Xml.h"
-
-#include <qdebug.h>
 
 #include <utility>
 
@@ -12,14 +11,14 @@ namespace fez
 
 std::expected<LevelDescription, Error> parseLevel(const QString& path)
 {
-    qDebug() << "parsing: " << path;
+    log::debug("parsing: {}", path);
 
     const auto document = loadXml(path);
 
     if(!document)
     {
         if(document.error().kind == ErrorKind::XmlSyntax)
-            qDebug() << "Error: \"" + QString::fromStdString(document.error().message) + "\" at " + QString::fromStdString(document.error().source);
+            log::debug("Error: \"{}\" at {}", document.error().message, document.error().source);
 
         return std::unexpected(document.error());
     }

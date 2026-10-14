@@ -1226,11 +1226,38 @@ Decisions), `--verbose`; print a failure summary; exit 0 / 1 (any asset failed) 
 `qDebug`.
 
 **Acceptance criteria:**
-- [ ] No `qDebug`/`<qdebug.h>` left in `src/`.
-- [ ] Without `--verbose`, a successful run prints only the summary.
+- [x] No `qDebug`/`<qdebug.h>` left in `src/`.
+- [x] Without `--verbose`, a successful run prints only the summary.
 
 **Verification:**
-- [ ] Build succeeds; default + golden pass.
+- [x] Build succeeds; default + golden pass.
+
+**Implementation notes (fez_mode-777.26):**
+- `log/Log.{h,cpp}` in `fez_core`: `fez::log::Level` (`Debug`, `Info`, `Warning`, `Error`), `setLevel`/`level`/`isEnabled`
+  (atomic level, default `Info`), `debug`/`info`/`warning`/`error`/`log(level, …)` taking a `std::format_string` (QString
+  arguments via `format/QStringFormatter.h`, which `Log.h` includes); messages below the level are not formatted.
+  Output goes through a `Sink` (`std::function<void(Level, std::string_view)>`), default `std::println(stderr, …)`;
+  every sink call happens under one mutex, so lines from the parallel pipeline workers stay whole. `setSink` (returns
+  the previous sink; empty restores the default) exists for tests.
+- **Addition:** `routeQtMessages()` installs a Qt message handler that maps Qt's debug/info/warning/critical/fatal
+  messages to `Debug`/`Info`/`Warning`/`Error`/`Error`. It replaces what `QLoggingCategory::setFilterRules
+  ("default.debug=false")` did in Task 25 (Qt's own debug output also only with `--verbose`) and keeps Qt messages from
+  interleaving with ours.
+- Parsers (`ArtObjectParser`, `TrileSetParser`, `TextureParser`, `LevelReader`) and `Pipeline.cpp` log via
+  `log::debug`; the messages are the same but without `QDebug`'s quoting (`parsing: <path>`, `Write: <name>`,
+  `Error: "<message>" at <source>`); the trile key line reads `trile: <key>` instead of `	: "<key>"`.
+- `main.cpp`: `routeQtMessages()`, `setLevel(Debug)` for `--verbose`; the summary is one `log::info` message (stderr as
+  before). Help and usage-error text still go through `QTextStream` to stdout/stderr.
+- Tests: `tests/unit/LogTests.cpp` (`[log]`, 6 cases: default level, debug level, higher level, QString/UTF-8
+  formatting, Qt message routing, and a concurrency case `[concurrency]` with 8 threads × 200 lines into a deliberately
+  non-atomic sink that appends one character at a time and yields; with the mutex removed the case crashed on every
+  run). `tests/e2e/CliTests.cpp` (`[log]`): without `--verbose` the whole output of a successful mini run equals the
+  three summary lines; with `--jobs 4 --verbose` it contains `parsing:`/`Write:` lines and every line is one whole
+  message. Written first and seen failing to compile.
+- Checks: Debug and Release build (no warnings); `ctest --preset windows-debug` 199/199; the real Debug exe on a mini
+  copy without `--verbose` (stdout empty, stderr exactly the summary, exit 0), with `--verbose --jobs 4` (debug lines
+  plus summary, exit 0), Release exe without `--verbose` (summary only); all three outputs equal `mini_expected`;
+  `ctest --preset windows-release-golden` passed against `golden/v1` (560 s).
 
 **Dependencies:** Task 25
 

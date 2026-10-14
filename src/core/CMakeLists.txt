@@ -22,6 +22,8 @@ set(FEZ_CORE_SOURCES
     geometry/TexturedQuad.h
     level/ResolveLevel.cpp
     level/ResolveLevel.h
+    log/Log.cpp
+    log/Log.h
     math/Quaternion.h
     math/Vector.h
     model/ArtObject.h

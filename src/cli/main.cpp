@@ -1,11 +1,11 @@
 #include "Options.h"
 #include "Summary.h"
 
+#include "log/Log.h"
 #include "pipeline/Pipeline.h"
 #include "repository/AssetRepository.h"
 
 #include <QtCore/QCoreApplication>
-#include <QtCore/QLoggingCategory>
 #include <QtCore/QTextStream>
 
 #include <vector>
@@ -24,9 +24,11 @@ int main(int argc, char* argv[])
         return options.error().m_ExitCode;
     }
 
-    // Debug messages (qDebug) only with --verbose.
-    if(!options->m_Verbose)
-        QLoggingCategory::setFilterRules("default.debug=false");
+    // Debug messages only with --verbose; Qt's own messages go through the same facade.
+    fez::log::routeQtMessages();
+
+    if(options->m_Verbose)
+        fez::log::setLevel(fez::log::Level::Debug);
 
     const auto pipeline_options = fez::PipelineOptions{.m_Jobs = options->m_Jobs};
 
@@ -43,10 +45,9 @@ int main(int argc, char* argv[])
     if(options->m_Levels)
         phases.push_back({"Levels", fez::convertLevels(options->m_Input, options->m_Output, repository, pipeline_options)});
 
-    // The summary goes to stderr directly: qWarning ends up in OutputDebugString when the process has no console.
-    auto err = QTextStream(stderr);
-    err << fez::cli::formatSummary(phases);
-    err.flush();
+    // The summary goes to stderr through the facade (one message, so it stays together); it ends with a line break.
+    if(const auto summary = fez::cli::formatSummary(phases); !summary.isEmpty())
+        fez::log::info("{}", summary.chopped(1));
 
     return fez::cli::exitCode(phases);
 }

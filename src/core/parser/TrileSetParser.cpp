@@ -1,11 +1,10 @@
 #include "parser/TrileSetParser.h"
 
+#include "log/Log.h"
 #include "parser/GeometryParser.h"
 #include "xml/Xml.h"
 
 #include <QtCore/QFileInfo>
-
-#include <qdebug.h>
 
 #include <utility>
 
@@ -31,7 +30,7 @@ std::expected<std::pair<int, Geometry>, Error> parseTrile(const QDomElement& ent
 
     const auto trile_elem = childElement(entry_elem, "Trile");
 
-    qDebug() << "\t: " << *key_str;
+    log::debug("trile: {}", *key_str);
 
     if(!trile_elem)
         return std::unexpected(trile_elem.error());
@@ -72,7 +71,7 @@ std::expected<std::pair<int, Geometry>, Error> parseTrile(const QDomElement& ent
 
 std::expected<TrileSet, Error> parseTrileSet(const QString& path)
 {
-    qDebug() << "parsing: " << path;
+    log::debug("parsing: {}", path);
 
     const QFileInfo info(path);
 
@@ -81,7 +80,7 @@ std::expected<TrileSet, Error> parseTrileSet(const QString& path)
     if(!document)
     {
         if(document.error().kind == ErrorKind::XmlSyntax)
-            qDebug() << "Error: \"" + QString::fromStdString(document.error().message) + "\" at " + QString::fromStdString(document.error().source);
+            log::debug("Error: \"{}\" at {}", document.error().message, document.error().source);
 
         return std::unexpected(document.error());
     }
