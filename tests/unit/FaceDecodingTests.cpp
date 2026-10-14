@@ -8,7 +8,7 @@
 using fez::Vec3f;
 
 // Side indices as they appear in the <Normal> element of FEZ vertices. The vectors are the values the parser writes
-// today (the constants are named pos_x, pos_y, ... but point the other way; Task 31 renames them, values stay).
+// today; FaceDecoding.cpp names its constants posX/negX, posY/negY, posZ/negZ after the direction they point in.
 
 TEST_CASE("decodeFaceNormal maps sides 0-5 to unit axis vectors", "[geometry]")
 {

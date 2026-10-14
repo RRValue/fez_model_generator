@@ -1525,9 +1525,23 @@ policy decided in Open Questions.
 **Description:** Fix remaining `/W4` warnings in project code and enable `/WX`.
 
 **Acceptance criteria:**
-- [ ] Debug and Release build with `/WX` without warnings from project code.
+- [x] Debug and Release build with `/WX` without warnings from project code.
 
 **Verification:** `cmake --build --preset windows-debug` and `--preset windows-release`; default + golden pass.
+
+**Implementation notes (fez_mode-777.33):**
+- No warnings were left to fix: a clean configure (`build/windows-vs` deleted) and Debug + Release builds with `/W4`
+  before the change gave zero warnings (the Task 1 list – C4996 `QDomDocument::setContent`, C4267 in `Writer.cpp` –
+  was gone with the parser and writer rewrites). No warning is suppressed in project code.
+- `cmake/CompilerWarnings.cmake` adds `/WX` (and `-Werror` in the non-MSVC branch) to `fez_set_project_warnings`,
+  which `fez_core`, `fez_cli`, `fez_model_generator` and `fez_tests` call; the generated projects have
+  `TreatWarningAsError` true for Debug and Release. Third-party headers stay external (`/external:I` from the imported
+  targets, `/external:anglebrackets`, `/external:W0`), so Qt, assimp, Eigen and Catch2 warnings neither show nor fail.
+- Probe: an unused initialized local in `src/core/log/Log.cpp` failed the Debug build with C4189 → C2220; reverted.
+- `tests/unit/FaceDecodingTests.cpp`: the comment no longer mentions the old `pos_x`/`pos_y` names and Task 31.
+- Checks: clean configure; Debug and Release build with `/WX`, no warnings; `ctest --preset windows-debug` and
+  `ctest --preset windows-release` 206/206; `ctest --preset windows-release-golden` passed against `golden/v3` (553 s),
+  so no new golden version.
 
 **Dependencies:** Tasks 28–32
 
@@ -1536,8 +1550,8 @@ policy decided in Open Questions.
 **Estimated scope:** S–M (depends on warning count)
 
 ### Checkpoint: Complete
-- [ ] All tasks checked; default and golden tests pass on the latest golden version.
-- [ ] Every golden version change is explained by a Phase 2 task.
+- [x] All tasks checked; default and golden tests pass on the latest golden version.
+- [x] Every golden version change is explained by a Phase 2 task.
 - [ ] Ready for review / PR.
 
 ---
