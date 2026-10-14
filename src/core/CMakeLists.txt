@@ -48,6 +48,9 @@ set(FEZ_CORE_SOURCES
     parser/TextureParser.h
     parser/TrileSetParser.cpp
     parser/TrileSetParser.h
+    pipeline/ConversionReport.h
+    pipeline/Pipeline.cpp
+    pipeline/Pipeline.h
     repository/AssetRepository.cpp
     repository/AssetRepository.h
     xml/Xml.cpp
@@ -61,7 +64,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX core FILES ${FEZ_CORE_SOURC
 # Headers are included relative to src/core (e.g. "parser/level/LevelReader.h").
 target_include_directories(fez_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Public headers use Qt Core/Xml types and Eigen; assimp and QImage stay internal.
+# Public headers use Qt Core/Xml types and Eigen; assimp, QImage and QtConcurrent stay internal.
 target_link_libraries(fez_core
     PUBLIC
         Eigen3::Eigen
@@ -69,6 +72,7 @@ target_link_libraries(fez_core
         Qt6::Xml
     PRIVATE
         assimp::assimp
+        Qt6::Concurrent
         Qt6::Gui
 )
 

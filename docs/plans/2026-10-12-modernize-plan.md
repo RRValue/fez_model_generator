@@ -1124,12 +1124,47 @@ no-overwrite semantics as today). `Writer`, `GeometryWriter`, `LevelWriter` are 
 `ConversionReport` (per file: ok or `Error`) in input order. `Application` is removed; `main` calls the pipeline.
 
 **Acceptance criteria:**
-- [ ] Test on `mini_export`: report lists all assets as ok; with one corrupted fixture copy the report contains that
+- [x] Test on `mini_export`: report lists all assets as ok; with one corrupted fixture copy the report contains that
       file's error and the other assets still convert.
-- [ ] `Application.h/.cpp` deleted; no `QFutureSynchronizer`.
+- [x] `Application.h/.cpp` deleted; no `QFutureSynchronizer`.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[pipeline]"`; default + golden pass.
+- [x] Tests pass: `fez_tests.exe "[pipeline]"`; default + golden pass.
+
+**Implementation notes (fez_mode-777.24):**
+- `pipeline/ConversionReport.h`: `FileReport { m_File, std::vector<Error> m_Errors; ok() }` and `ConversionReport {
+  std::vector<FileReport> m_Files; ok(), failureCount(), append() }`. **Deviation:** a file holds a list of errors
+  instead of one `Error`, because a trile set exports every trile on its own and the old code went on after a failed
+  trile; each failed trile export is one error. Every other file has at most one error.
+- `pipeline/Pipeline.{h,cpp}`: `convertArtObjects`, `convertTrileSets`, `convertLevels(input, output, repository,
+  PipelineOptions = {})`, `PipelineOptions { m_Jobs = defaultJobCount() }` (`QThread::idealThreadCount()`; values below
+  1 count as 1). A file-local `convertFiles` lists `<input>/<folder>/*.xml` as before and **sorts the list** (report
+  order independent of the file system; no output effect, each file's output is its own), then runs
+  `QtConcurrent::blockingMapped<QList<FileReport>>(&pool, files, convert)` on a `QThreadPool` local to the call with
+  `setMaxThreadCount(m_Jobs)`; results come back in list order. `convert` catches `std::exception` per file (reported
+  as `Io`, "unexpected exception: …"), so one throwing file cannot abort the phase. `exportScene`/`exportGeometry` moved
+  here from `Application.cpp` and return `std::expected<void, Error>`; repository, `parseLevel`, `resolveLevel`,
+  directory and export errors land in the report (no more `qWarning` in the export path). Each phase uses its own
+  `TextureCopier` (Task 23 shared one per run; the phases write into disjoint folders, so the copies are the same).
+  `fez_core` links `Qt6::Concurrent` privately; the CLI no longer links it directly.
+- `src/cli/main.cpp`: plain `QCoreApplication` (no event loop / `QTimer`), the argument handling of `Application::onRun`
+  unchanged (usage errors exit 2, otherwise exit 0 as before), one `AssetRepository` for the three phases, and every
+  error of the reports logged as `qWarning` "Failed: <file> - <kind> <message> - <source>" until Task 25 adds the
+  summary, `--only`, `--jobs` and exit codes. `src/cli/Application.{h,cpp}` deleted.
+- `tests/unit/PipelineTests.cpp` (`[pipeline]`, 8 cases / 131 assertions): mini copy with 1 and 4 jobs (all ok, report
+  names the input files, output equals `mini_expected`); two truncated art object copies sorted around `mini_ao.xml`
+  (both `XmlSyntax` with their file in the source, everything else ok, output still equals `mini_expected`); a level
+  without sections (`MissingElement`, AO/TS output complete, no `lv_export`); a missing AO fails the level with
+  `FileNotFound`; an output root that is a regular file (`Export` per file, two errors for the two-trile set); missing
+  asset folders (empty reports, nothing written); report helpers; default jobs. Written first and seen failing to
+  compile.
+- Task 1 note: `Qt6Concurrent(d).dll` is now deployed by windeployqt into `bin/Debug` and `bin/Release`.
+- **Peak memory** (Task 20 note): one full Release conversion of `Z:/fez_data/golden/input` into a fresh directory
+  peaked at **6.93 GB working set** (7.37 GB peak paged/private), 531 s, 9047 files. Below the ~9.8 GB of the old Debug
+  converter (Task 5), so no per-phase release of the repository is needed.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[pipeline]"` passed (5 repeated runs);
+  `ctest --preset windows-debug` and `windows-release` 180/180; `ctest --preset windows-release-golden` passed against
+  `golden/v1` (535 s).
 
 **Dependencies:** Task 23
 
