@@ -1316,7 +1316,7 @@ and assimp DLLs. README documents vcpkg setup (`vcpkg install assimp eigen3 catc
 - [x] Dependency direction holds: only `export/` includes assimp, only `xml/`/`parser/` include `QDom*`.
   (fez_mode-777.27: assimp only in `src/core/export/` (`.cpp`; headers forward-declare), `QDom*` only in
   `src/core/xml/` and `src/core/parser/`.)
-- [ ] Human review before behavior changes.
+- [x] Human review before behavior changes.
 
 ---
 
