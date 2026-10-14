@@ -1,12 +1,9 @@
 #pragma once
 
+#include "export/SceneBuilder.h"
 #include "model/Geometry.h"
 
 #include <QtCore/QString>
-
-struct aiScene;
-struct aiMesh;
-struct aiMaterial;
 
 namespace fez
 {
@@ -14,24 +11,15 @@ namespace fez
 class Writer
 {
     using Textures = std::vector<std::pair<QString, QString>>;
-    
-    using MeshAllocation = std::pair<unsigned int, aiMesh*>;
-    using MaterialAllocation = std::pair<unsigned int, aiMaterial*>;
-    using MeshId = std::optional<unsigned int>;
+    using MeshId = std::optional<SceneBuilder::MeshId>;
 
 public:
     Writer(const QString& path);
-    ~Writer();
 
 public:
     void save();
 
 protected:
-    MeshAllocation allocateMesh();
-    MaterialAllocation allocateMaterial();
-
-    void deallocateScene();
-
     MeshId addGeometry(const Geometry& geometry);
 
 protected:
@@ -40,7 +28,7 @@ protected:
 protected:
     QString m_Path;
     
-    aiScene* m_Scene;
+    SceneBuilder m_Builder;
     Textures m_Textures;
 };
 

@@ -3,6 +3,10 @@
 
 set(FEZ_CORE_SOURCES
     error/Error.h
+    export/SceneBuilder.cpp
+    export/SceneBuilder.h
+    export/Transforms.cpp
+    export/Transforms.h
     format/QStringFormatter.h
     geometry/FaceDecoding.cpp
     geometry/FaceDecoding.h

@@ -995,15 +995,47 @@ deleted.
 `Writer` internals delegate to it; the four node blocks in `LevelWriter` collapse into one helper.
 
 **Acceptance criteria:**
-- [ ] Tests: mesh/material/node counts; winding `(0,2,1)`; quaternion for orientations 0–3; −0.5 offset; opacity
+- [x] Tests: mesh/material/node counts; winding `(0,2,1)`; quaternion for orientations 0–3; −0.5 offset; opacity
       texture property only for planes with translucent pixels.
-- [ ] One mesh **and** one material per instance, in XML order, with no deduplication: two emplacements of the same
+- [x] One mesh **and** one material per instance, in XML order, with no deduplication: two emplacements of the same
       trile produce two meshes and two materials, as `Writer::addGeometry` does today. A test asserts this (the OBJ
       exporter writes every material to the `.mtl`, so deduplicating would change the output).
-- [ ] No `new aiMesh*[`/`memcpy` reallocation remains.
+- [x] No `new aiMesh*[`/`memcpy` reallocation remains.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[export]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[export]"`; golden passes.
+
+**Implementation notes (fez_mode-777.22):**
+- `export/Transforms.{h,cpp}`: `struct Transform { m_Position = 0, m_Rotation = identity, m_Scale = 1 }` (node matrix
+  `aiMatrix4x4(scale, rotation, position)`), `levelObjectOffset = -0.5f`, `withLevelObjectOffset(Vec3f)` (per
+  component `p + levelObjectOffset`, bit-identical to the old `p - 0.5f`) and `trileOrientation(int)`. The latter still
+  builds the old `aiQuaternion(pitch, 0, 0)` Euler quaternions (π, −π/2, 0, π/2 with `std::numbers::pi_v<float>`,
+  otherwise identity) inside the `.cpp` and returns their `w, x, y, z` as a `QuaternionF`, so the values are bit-exact
+  and `Transforms.h` stays free of assimp; `SceneBuilder::addNode` turns them back into `aiQuaternion(w, x, y, z)`.
+  The orientation is passed as `static_cast<int>(m_Orientation)` (still `unsigned` in the model until Task 30).
+- `export/SceneBuilder.{h,cpp}` (assimp types only forward-declared in the header): meshes, materials and nodes in
+  `std::vector<std::unique_ptr<…>>`; `addMesh(const Geometry&) -> std::optional<MeshId>` is the old
+  `Writer::addGeometry` body (mesh and material are added before any check; no id, but the incomplete mesh/material
+  stay, for zero vertices, zero faces or a plane whose texture does not load; opacity texture via
+  `hasTranslucentPixels`); `addNode(name, Transform, meshId)`; `build() -> std::unique_ptr<aiScene>` moves everything
+  into the scene once (pointer arrays allocated once via `std::make_unique<T*[]>`, children added with one
+  `addChildren` call, `nullptr` arrays when empty) and leaves the builder empty. Index conversions are now
+  `static_cast` (the three C4267 warnings of `Writer.cpp` are gone).
+- `Writer` owns a `SceneBuilder` instead of a raw `aiScene*` (`allocateMesh`/`allocateMaterial`/`deallocateScene`
+  and the destructor are gone); `addGeometry` delegates to `addMesh` and records the texture copy only for a mesh
+  with an id (as before); `save()` exports `m_Builder.build()`. `GeometryWriter` adds one node with an empty name and
+  default `Transform`. `LevelWriter`'s four node blocks collapse into `addInstance(geometry, name, Transform)`; the
+  loops (AOs, triles, planes, NPCs) and their skip rules are unchanged. Texture copying, the OBJ export and the writer
+  classes themselves are left for Task 23.
+- `tests/unit/SceneBuilderTests.cpp` (`[export]`): 13 test cases / 147 assertions (empty scene, vertex/normal/UV copy,
+  winding, material properties incl. the one-byte `TWOSIDED` buffer, no deduplication, empty geometry and
+  vertices-without-faces still add a mesh and material, opacity texture only for translucent planes, unloadable plane
+  texture, node order/name/mesh/exact matrix, builder empty after `build`, `trileOrientation` 0–3 bit-exact against
+  `aiQuaternion` plus approximate values, identity otherwise, the −0.5 offset bit-exact against `p - 0.5f`).
+  `fez_tests` now links `assimp::assimp` explicitly (the tests inspect the `aiScene`). Written first and seen failing
+  to compile.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[export]"` passed; `ctest --preset windows-debug` and
+  `windows-release` 154/154; `ctest --preset windows-release-golden` passed against `golden/v1` (508 s).
 
 **Dependencies:** Tasks 13, 21
 
