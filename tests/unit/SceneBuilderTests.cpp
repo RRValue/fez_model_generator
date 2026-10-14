@@ -211,32 +211,45 @@ TEST_CASE("SceneBuilder: one mesh and one material per instance, without dedupli
     CHECK(materialName(*scene->mMaterials[2]) == "other.png");
 }
 
-TEST_CASE("SceneBuilder: an empty geometry still adds an empty mesh and material but no id", "[export]")
+TEST_CASE("SceneBuilder: an empty geometry gives an error and adds no mesh and no material", "[export]")
 {
-    // Kept behavior until Task 29: the mesh and the material are allocated before the geometry is checked.
     fez::SceneBuilder builder;
     REQUIRE(builder.addMesh(triangle("first")) == 0u);
-    CHECK_FALSE(builder.addMesh(fez::Geometry{}).has_value());
+
+    const auto no_vertices = builder.addMesh(fez::Geometry{});
+    REQUIRE_FALSE(no_vertices.has_value());
+    CHECK(no_vertices.error().kind == fez::ErrorKind::BadValue);
 
     auto vertices_only = triangle("vertices only");
     vertices_only.m_Indices.clear();
-    CHECK_FALSE(builder.addMesh(vertices_only).has_value());
+    const auto no_faces = builder.addMesh(vertices_only);
+    REQUIRE_FALSE(no_faces.has_value());
+    CHECK(no_faces.error().kind == fez::ErrorKind::BadValue);
+    CHECK(no_faces.error().source == "vertices only");
 
-    REQUIRE(builder.addMesh(triangle("last")) == 3u);
+    // the next mesh gets the next free id: nothing was allocated for the empty geometries
+    REQUIRE(builder.addMesh(triangle("last")) == 1u);
 
     const auto scene = builder.build();
-    REQUIRE(scene->mNumMeshes == 4);
-    REQUIRE(scene->mNumMaterials == 4);
+    REQUIRE(scene->mNumMeshes == 2);
+    REQUIRE(scene->mNumMaterials == 2);
 
-    CHECK(scene->mMeshes[1]->mNumVertices == 0);
-    CHECK(scene->mMeshes[1]->mVertices == nullptr);
-    CHECK(materialName(*scene->mMaterials[1]) == "<none>");
+    CHECK(scene->mMeshes[0]->mName == aiString("first"));
+    CHECK(scene->mMeshes[1]->mName == aiString("last"));
+    CHECK(scene->mMeshes[1]->mMaterialIndex == 1);
+    CHECK(materialName(*scene->mMaterials[1]) == "tex.png");
+}
 
-    CHECK(scene->mMeshes[2]->mNumVertices == 3);
-    CHECK(scene->mMeshes[2]->mNumFaces == 0);
-    CHECK(materialName(*scene->mMaterials[2]) == "<none>");
+TEST_CASE("SceneBuilder: only empty geometry leaves the scene without meshes and materials", "[export]")
+{
+    fez::SceneBuilder builder;
+    CHECK_FALSE(builder.addMesh(fez::Geometry{}).has_value());
 
-    CHECK(scene->mMeshes[3]->mMaterialIndex == 3);
+    const auto scene = builder.build();
+    CHECK(scene->mNumMeshes == 0);
+    CHECK(scene->mNumMaterials == 0);
+    CHECK(scene->mMeshes == nullptr);
+    CHECK(scene->mMaterials == nullptr);
 }
 
 TEST_CASE("SceneBuilder: an opacity texture only for planes with translucent pixels", "[export]")
@@ -266,7 +279,9 @@ TEST_CASE("SceneBuilder: an opacity texture only for planes with translucent pix
 TEST_CASE("SceneBuilder: a plane whose texture cannot be loaded gives no id", "[export]")
 {
     fez::SceneBuilder builder;
-    CHECK_FALSE(builder.addMesh(plane("Z:/does/not/exist/plane.png")).has_value());
+    const auto id = builder.addMesh(plane("Z:/does/not/exist/plane.png"));
+    REQUIRE_FALSE(id.has_value());
+    CHECK(id.error().kind == fez::ErrorKind::FileNotFound);
 
     const auto scene = builder.build();
     REQUIRE(scene->mNumMeshes == 1);

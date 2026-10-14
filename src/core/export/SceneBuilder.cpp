@@ -39,9 +39,19 @@ SceneBuilder::SceneBuilder() = default;
 
 SceneBuilder::~SceneBuilder() = default;
 
-std::optional<SceneBuilder::MeshId> SceneBuilder::addMesh(const Geometry& geometry)
+std::expected<SceneBuilder::MeshId, Error> SceneBuilder::addMesh(const Geometry& geometry)
 {
-    // One mesh and one material per call, allocated before the geometry is checked (kept behavior).
+    const auto num_vertices = geometry.m_Vertices.size();
+    const auto num_faces = geometry.m_Indices.size() / 3;
+
+    // empty geometry: no mesh and no material
+    if(num_vertices == 0)
+        return std::unexpected(Error{ErrorKind::BadValue, "geometry has no vertices", geometry.m_Name.toStdString()});
+
+    if(num_faces == 0)
+        return std::unexpected(Error{ErrorKind::BadValue, "geometry has no faces", geometry.m_Name.toStdString()});
+
+    // one mesh and one material per call
     const auto mesh_id = static_cast<MeshId>(m_Meshes.size());
     const auto material_index = static_cast<unsigned int>(m_Materials.size());
 
@@ -49,13 +59,7 @@ std::optional<SceneBuilder::MeshId> SceneBuilder::addMesh(const Geometry& geomet
     const auto material = m_Materials.emplace_back(std::make_unique<aiMaterial>()).get();
 
     // load vertices
-    const auto& num_vertices = geometry.m_Vertices.size();
-
-    mesh->mNumVertices = (unsigned int)num_vertices;
-
-    if(num_vertices == 0)
-        return {};
-
+    mesh->mNumVertices = static_cast<unsigned int>(num_vertices);
     mesh->mVertices = new aiVector3D[num_vertices];
     mesh->mNormals = new aiVector3D[num_vertices];
     mesh->mTextureCoords[0] = new aiVector3D[num_vertices];
@@ -74,13 +78,7 @@ std::optional<SceneBuilder::MeshId> SceneBuilder::addMesh(const Geometry& geomet
     }
 
     // load faces, winding (0, 2, 1)
-    auto num_faces = geometry.m_Indices.size() / 3;
-
-    mesh->mNumFaces = (unsigned int)num_faces;
-
-    if(num_faces == 0)
-        return {};
-
+    mesh->mNumFaces = static_cast<unsigned int>(num_faces);
     mesh->mFaces = new aiFace[num_faces];
 
     for(size_t i = 0; i < num_faces; i++)
@@ -116,7 +114,8 @@ std::optional<SceneBuilder::MeshId> SceneBuilder::addMesh(const Geometry& geomet
         QImage texture(geometry.m_Texture.m_TextureOrgFile);
 
         if(texture.isNull())
-            return {};
+            return std::unexpected(Error{ErrorKind::FileNotFound, "plane texture cannot be loaded",
+                                         geometry.m_Texture.m_TextureOrgFile.toStdString()});
 
         if(hasTranslucentPixels(texture))
         {

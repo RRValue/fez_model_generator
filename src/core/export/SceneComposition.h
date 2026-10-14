@@ -44,7 +44,8 @@ std::optional<ComposedScene> buildGeometryScene(const Geometry& geometry);
 // One mesh, material and node per instance, in this order: art objects (skipped without geometry; position with
 // levelObjectOffset), trile emplacements (skipped without geometry, e.g. id -1; node named after the id, rotation
 // trileOrientation), background planes (levelObjectOffset), NPCs (position only). An instance whose mesh gets no id
-// keeps its mesh and material but gets no node and no texture entry. Always gives a scene, also for an empty level.
+// gets no node and no texture entry (empty geometry adds no mesh and material either; a plane whose texture cannot be
+// loaded keeps them). Always gives a scene, also for an empty level.
 ComposedScene buildLevelScene(const Level& level);
 
 } // namespace fez

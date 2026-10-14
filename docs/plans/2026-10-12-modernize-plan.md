@@ -1360,9 +1360,29 @@ Each output-changing task: write a failing test → fix → regenerate `mini_exp
 allocating a mesh/material; callers skip the node as today.
 
 **Acceptance criteria:**
-- [ ] Test: empty geometry → mesh and material counts unchanged.
+- [x] Test: empty geometry → mesh and material counts unchanged.
 
 **Verification:** `fez_tests.exe "[export]"`; golden (new version if output changes).
+
+**Implementation notes (fez_mode-777.29):**
+- `SceneBuilder::addMesh` now returns `std::expected<MeshId, Error>` (was `std::optional`). Zero vertices or zero
+  faces (`m_Indices.size() / 3 == 0`) are checked before anything is allocated and give a `BadValue` error (source:
+  the geometry name); no mesh and no material are added, so the next mesh gets the next free id. A plane whose texture
+  cannot be loaded still keeps its complete mesh and material without an id (kept, out of scope) and now reports
+  `FileNotFound` (source: the texture file). Callers (`Composer::addInstance`, i.e. `buildGeometryScene` /
+  `buildLevelScene`) are unchanged: no id → no node and no texture entry; the error itself is not reported.
+- Tests (`[export]`): `SceneBuilder: an empty geometry gives an error and adds no mesh and no material` (replaces the
+  kept-behavior test: counts stay 2 for first/empty/vertices-only/last, ids 0 and 1, error kind and source),
+  `SceneBuilder: only empty geometry leaves the scene without meshes and materials`, the unloadable plane test checks
+  `FileNotFound`, and `buildLevelScene: an instance with empty geometry adds no mesh, no node and no texture` (1 mesh,
+  1 material, the NPC node uses mesh 0). Seen failing (first to compile, then 3 cases / 8 assertions with the new
+  return type but the old allocation order) before the fix.
+- `tests/data/mini_expected` unchanged (the mini fixture has no empty geometry; the mini e2e test passed as is).
+- Real data changes: golden `v3` generated and reviewed (see Notes: "Golden reference v3 (Task 29)"); local
+  `FEZ_GOLDEN_DIR` points to it.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[export]"` 33 test cases / 394 assertions passed;
+  `ctest --preset windows-debug` 200/200; `ctest --preset windows-release-golden` failed against `golden/v2` as
+  expected (144 differing MTL files) and passed against `golden/v3` (552 s).
 
 **Dependencies:** Task 27
 
@@ -1517,4 +1537,18 @@ policy decided in Open Questions.
   other vertices, so assimp's position deduplication writes 2 fewer `v ` lines (header count 381100 → 381098) and later
   `f` indices shift; the resolved geometry differs only in the non-divisible planes.
 - **Determinism (v2):** a second Release run into a temp directory equals `v2` (9047 / 9047 files, 0 missing, 0 extra,
+  0 different); the temp output was deleted.
+- **Golden reference v3 (Task 29):** `Z:/fez_data/golden/v3`, built from the fez_mode-777.29 commit (no empty mesh
+  or material for empty geometry, on top of `c4236fe`) with `build/windows-vs/bin/Release/fez_model_generator.exe
+  --input Z:/fez_data/golden/input --output Z:/fez_data/golden/v3` into a fresh directory (exit code 0, 477 s). File
+  counts unchanged: `ao_export` = 1623, `ts_export` = 4737, `lv_export` = 2687; 9047 in total. `v1` and `v2` are kept
+  unchanged. Local `FEZ_GOLDEN_DIR` (all five places in `CMakeUserPresets.json`) points to `v3`.
+- **v2 → v3 diff (SHA-256 by relative path):** 0 missing, 0 extra, 144 different – all of them
+  `lv_export/<LEVEL>/<LEVEL>.mtl`; no OBJ, texture, `ao_export` or `ts_export` file changed. Each of the 144 `v3` MTLs
+  is byte-identical to its `v2` file with every block `newmtl $Material_<n>` / `illum 1` / empty line removed (25520
+  blocks in total; CRLF kept). These unnamed, property-less materials were the ones allocated for empty geometry (the
+  assimp exporter names a material without `AI_MATKEY_NAME` `$Material_<index>`); no OBJ referenced them (no
+  `usemtl $Material_`), and no `$Material_` entry remains anywhere in `v3`. Art object and trile set outputs are
+  unchanged because an empty geometry already produced no scene there.
+- **Determinism (v3):** a second Release run into a temp directory equals `v3` (9047 / 9047 files, 0 missing, 0 extra,
   0 different); the temp output was deleted.

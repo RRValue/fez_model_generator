@@ -159,7 +159,7 @@ TEST_CASE("buildLevelScene: art objects, triles, planes and NPCs in this order",
     CHECK(composed.m_Textures[4].m_Source == "in/npc/idle.ani.png");
 }
 
-TEST_CASE("buildLevelScene: an instance whose mesh gets no id adds a mesh but no node and no texture", "[export][scene]")
+TEST_CASE("buildLevelScene: an instance with empty geometry adds no mesh, no node and no texture", "[export][scene]")
 {
     fez::Level level;
     level.m_LevelName = "LEVEL";
@@ -181,12 +181,12 @@ TEST_CASE("buildLevelScene: an instance whose mesh gets no id adds a mesh but no
     const auto composed = fez::buildLevelScene(level);
     const auto& scene = *composed.m_Scene;
 
-    // kept behavior (Task 29 drops empty meshes): the empty plane still adds a mesh and a material
-    CHECK(scene.mNumMeshes == 2);
-    CHECK(scene.mNumMaterials == 2);
+    // the empty plane adds no mesh and no material (Task 29)
+    CHECK(scene.mNumMeshes == 1);
+    CHECK(scene.mNumMaterials == 1);
     REQUIRE(scene.mRootNode->mNumChildren == 1);
     CHECK(nodeName(scene, 0) == "npc");
-    CHECK(nodeMesh(scene, 0) == 1);
+    CHECK(nodeMesh(scene, 0) == 0);
 
     REQUIRE(composed.m_Textures.size() == 1);
     CHECK(composed.m_Textures[0].m_Name == "npc.png");
