@@ -945,13 +945,40 @@ trile geometries (skipping id −1 as today), AO geometries, plane and NPC textu
 deleted.
 
 **Acceptance criteria:**
-- [ ] Test with a fake repository: missing AO → level error; id −1 skipped; plane quad uses first animation frame.
-- [ ] Failure conditions preserved: a failed trile set, a trile id (other than −1) absent from the set, a failed AO,
+- [x] Test with a fake repository: missing AO → level error; id −1 skipped; plane quad uses first animation frame.
+- [x] Failure conditions preserved: a failed trile set, a trile id (other than −1) absent from the set, a failed AO,
       or a failed plane/NPC texture fails the whole level and produces no output for it, as today.
-- [ ] `LevelParser.h/.cpp` removed.
+- [x] `LevelParser.h/.cpp` removed.
 
 **Verification:**
-- [ ] Tests pass: `fez_tests.exe "[level]"`; golden passes.
+- [x] Tests pass: `fez_tests.exe "[level]"`; golden passes.
+
+**Implementation notes (fez_mode-777.21):**
+- `level/ResolveLevel.{h,cpp}`: `resolveLevel(const LevelDescription&, AssetRepository&) -> std::expected<Level, Error>`
+  with file-local `resolveTriles`, `resolveArtObjects`, `resolveBackgroundPlanes`, `resolveCharacters` (the old
+  `LevelParser` steps in the same order: trile set, art objects, all plane textures then their quads, all NPC
+  textures then their quads) and `firstFrameUv`/`attachQuad` (quad from `makeTexturedQuad`, geometry named after the
+  texture). Plane size keeps the integer division, NPC size the float division; emplacements (incl. id −1) and AO
+  instances are copied from the description.
+- Errors (before: an empty `std::optional`): repository errors are passed through (failed trile set, AO, plane/NPC
+  texture); a trile set without triles is `BadValue` with the trile set path as source (even when the level places no
+  trile, as before); a trile id other than −1 missing from the set is `BadValue` (`"trile id <n> is not in trile set
+  <name>"`, source `Level/Triles`); an NPC without actions (cannot come from `parseLevel`) is `MissingElement`.
+- `Application::processLevels` calls `parseLevel(file)` and then `resolveLevel(*description, repository)`; either
+  failure skips the level silently as before (reporting is Task 24). `src/core/parser/LevelParser.{h,cpp}` deleted.
+- **Deviation:** `LevelParser::parse` was `noexcept`; `resolveLevel` is not, so an exception from a repository loader
+  (only `std::bad_alloc` in practice) now reaches the `QtConcurrent` future instead of calling `std::terminate`. No
+  effect on output.
+- `tests/unit/ResolveLevelTests.cpp` (`[level][resolve]`): 11 test cases / 111 assertions with an in-memory fake export
+  behind `AssetRepository::Loaders` that records every load: full resolve (geometries per used id/name, load order),
+  plane quads (static texture whole UV range, animated plane first frame, integer-division size, 0.05 offset), NPC
+  quad (first action's texture loaded animated, float-division size), id −1 skipped, and the failures: missing AO,
+  failed trile set, trile set without triles, unknown trile id, failed plane texture, failed NPC texture, NPC without
+  actions (each asserts the error kind and that nothing after the failure is loaded). Written first and seen failing to
+  compile.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[level]"` 31 test cases / 479 assertions passed;
+  `ctest --preset windows-debug` and `windows-release` 141/141; `ctest --preset windows-release-golden` passed against
+  `golden/v1` (548 s).
 
 **Dependencies:** Task 20
 

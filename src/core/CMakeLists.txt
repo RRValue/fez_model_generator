@@ -10,6 +10,8 @@ set(FEZ_CORE_SOURCES
     geometry/Image.h
     geometry/TexturedQuad.cpp
     geometry/TexturedQuad.h
+    level/ResolveLevel.cpp
+    level/ResolveLevel.h
     math/Quaternion.h
     math/Vector.h
     model/ArtObject.h
@@ -25,8 +27,6 @@ set(FEZ_CORE_SOURCES
     parser/ArtObjectParser.h
     parser/GeometryParser.cpp
     parser/GeometryParser.h
-    parser/LevelParser.cpp
-    parser/LevelParser.h
     parser/level/ArtObjectSection.cpp
     parser/level/BackgroundPlaneSection.cpp
     parser/level/LevelReader.cpp
@@ -54,7 +54,7 @@ add_library(fez_core STATIC ${FEZ_CORE_SOURCES})
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX core FILES ${FEZ_CORE_SOURCES})
 
-# Headers are included relative to src/core (e.g. "parser/LevelParser.h").
+# Headers are included relative to src/core (e.g. "parser/level/LevelReader.h").
 target_include_directories(fez_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Public headers use Qt Core/Xml types and Eigen; assimp and QImage stay internal.

@@ -1,6 +1,7 @@
 #include "Application.h"
 
-#include "parser/LevelParser.h"
+#include "level/ResolveLevel.h"
+#include "parser/level/LevelReader.h"
 #include "repository/AssetRepository.h"
 
 #include "writer/GeometryWriter.h"
@@ -135,8 +136,13 @@ void Application::processLevels(fez::AssetRepository& repository, const QString&
         level_files.push_back(lvl_xml_iter.next());
 
     const auto export_function = [&repository](const auto& file, const auto& path) -> void {
-        fez::LevelParser parser(repository);
-        const auto level = parser.parse(file);
+        // parseLevel logs "parsing:" and XML syntax errors; any failure skips the level (no output, as before)
+        const auto description = fez::parseLevel(file);
+
+        if(!description)
+            return;
+
+        const auto level = fez::resolveLevel(*description, repository);
 
         if(!level)
             return;
@@ -151,6 +157,6 @@ void Application::processLevels(fez::AssetRepository& repository, const QString&
 
     waiter.waitForFinished();
 
-    /*const auto level = LevelParser().parse("Z:/fez_data/export/levels/villageville_2d.xml");
+    /*const auto level = resolveLevel(*parseLevel("Z:/fez_data/export/levels/villageville_2d.xml"), repository);
     LevelWriter("Z:/fez_data/export/lv_export/" + level->m_LevelName).writeLevel(*level);*/
 }
