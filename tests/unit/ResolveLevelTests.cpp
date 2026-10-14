@@ -249,9 +249,9 @@ TEST_CASE("resolveLevel: background planes get their texture and a quad", "[leve
     CHECK(sky.m_Geometry.m_Opacity == 0.5f);
     CHECK(sky.m_Geometry.m_DoubleSided);
 
-    SECTION("a static texture covers the whole quad; the size uses integer division (40 / 16 = 2, 72 / 16 = 4)")
+    SECTION("a static texture covers the whole quad; the size uses float division (40 / 16 = 2.5, 72 / 16 = 4.5)")
     {
-        checkQuad(sky.m_Geometry, Vec2f{2.0f, 4.0f}, Vec2f{0.0f, 0.0f}, Vec2f{1.0f, 1.0f}, 0.05f);
+        checkQuad(sky.m_Geometry, Vec2f{2.5f, 4.5f}, Vec2f{0.0f, 0.0f}, Vec2f{1.0f, 1.0f}, 0.05f);
     }
 
     SECTION("an animated plane uses the first animation frame")

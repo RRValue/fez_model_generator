@@ -18,7 +18,7 @@ class AssetRepository;
 //    that is not in the set fails (BadValue)
 //  - art objects: one geometry per used name (the repository error of the first one that fails)
 //  - background planes: all textures "background planes/<texture name>" (static or animated as described), then one
-//    quad each of size (width / 16, height / 16) in integer division (fixed in Task 28), depth offset 0.05
+//    quad each of size (width / 16.0, height / 16.0), depth offset 0.05
 //  - NPCs: all textures "character animations/<npc name>/<animation of the first action>" (animated; an NPC without
 //    actions is MissingElement), then one quad each of size (width / 16.0, height / 16.0), no depth offset
 // Plane and NPC quads cover the first animation frame of an animated texture, otherwise the whole texture; their

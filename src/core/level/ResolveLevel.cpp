@@ -127,9 +127,8 @@ namespace
         {
             const auto& texture = background_plane.m_Geometry.m_Texture;
 
-            // Integer division kept on purpose (fixed in Task 28).
-            const auto geom_w = float(texture.m_Width / 16);
-            const auto geom_h = float(texture.m_Height / 16);
+            const auto geom_w = (float)texture.m_Width / float(16);
+            const auto geom_h = (float)texture.m_Height / float(16);
 
             attachQuad(background_plane.m_Geometry, Vec2f{geom_w, geom_h}, 0.05f);
         }

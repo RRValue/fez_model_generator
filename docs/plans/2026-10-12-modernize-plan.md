@@ -1330,10 +1330,22 @@ Each output-changing task: write a failing test → fix → regenerate `mini_exp
 **Description:** Use `float(width) / 16` like NPCs.
 
 **Acceptance criteria:**
-- [ ] Test: 40 px wide texture → quad width 2.5 (was 2).
-- [ ] Golden diff only touches level OBJs containing planes with widths/heights not divisible by 16.
+- [x] Test: 40 px wide texture → quad width 2.5 (was 2).
+- [x] Golden diff only touches level OBJs containing planes with widths/heights not divisible by 16.
 
 **Verification:** `fez_tests.exe "[level]"`; golden passes against the new version.
+
+**Implementation notes (fez_mode-777.28):**
+- `resolveBackgroundPlanes` now computes the quad size as `(float)width / float(16)` (same expression as the NPCs);
+  the `ResolveLevel.h` contract and the comment in `TexturedQuadTests.cpp` no longer mention integer division.
+- Test: `resolveLevel: background planes get their texture and a quad` – the 40x72 static `sky` texture now gives a
+  2.5 x 4.5 quad (was 2 x 4); it failed before the fix.
+- `tests/data/mini_expected`: only `lv_export/MINI/MINI.obj` changed (4 vertex lines: `mini_plane` 24x24 is now
+  1.5 x 1.5 instead of 1 x 1), regenerated with the fixed Debug exe on a copy of `mini_export` (CRLF kept).
+- Golden `v2` generated and reviewed (see Notes: "Golden reference v2 (Task 28)"); local `FEZ_GOLDEN_DIR` points to it.
+- Checks: Debug and Release build; `fez_tests.exe "[level]"` 31 cases passed; `ctest --preset windows-debug` 199/199;
+  `ctest --preset windows-release-golden` passed against `golden/v2` (547 s); a second Release run equals `v2` (9047 / 9047
+  files, 0 different).
 
 **Dependencies:** Task 27
 
@@ -1488,3 +1500,20 @@ policy decided in Open Questions.
 - `CMakeUserPresets.json` (local) sets `FEZ_DATA_DIR` and `FEZ_GOLDEN_DIR` as cache variables on `windows-vs` and as
   `environment` on the `windows-debug`/`windows-release` test presets; `CMakeUserPresets.example.json` has
   placeholders.
+- **Golden reference v2 (Task 28):** `Z:/fez_data/golden/v2`, built from the fez_mode-777.28 commit (the float-division
+  fix for background planes, on top of `b6fb1b0`) with `build/windows-vs/bin/Release/fez_model_generator.exe --input
+  Z:/fez_data/golden/input --output Z:/fez_data/golden/v2` into a fresh directory (exit code 0, 507 s). File counts
+  unchanged: `ao_export` = 1623, `ts_export` = 4737, `lv_export` = 2687; 9047 in total. `v1` is kept unchanged.
+  Local `FEZ_GOLDEN_DIR` (all five places in `CMakeUserPresets.json`) points to `v2`.
+- **v1 → v2 diff (SHA-256 by relative path):** 0 missing, 0 extra, 47 different – all of them
+  `lv_export/<LEVEL>/<LEVEL>.obj`; no MTL, texture, `ao_export` or `ts_export` file changed. The 47 levels are exactly
+  the levels with at least one background plane whose texture width or height (`actualWidth`/`actualHeight` for
+  animated ones) is not divisible by 16. Expanding every face to its vertex positions per OBJ group: exactly 800 plane
+  meshes changed geometry, which is exactly the number of plane instances with a non-divisible size (24 distinct
+  textures); 742 of them are narrower or lower than 16 px, matching the 742 degenerate instances of the Task 3 note
+  (3215 planes + 378 NPCs = 3593). Groups, materials, UVs and normals are unchanged. 46 files differ only in
+  `v ` lines (2984 lines); in `TEMPLE_OF_LOVE.obj` the now correctly sized planes share two corner positions with
+  other vertices, so assimp's position deduplication writes 2 fewer `v ` lines (header count 381100 → 381098) and later
+  `f` indices shift; the resolved geometry differs only in the non-divisible planes.
+- **Determinism (v2):** a second Release run into a temp directory equals `v2` (9047 / 9047 files, 0 missing, 0 extra,
+  0 different); the temp output was deleted.

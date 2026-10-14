@@ -73,7 +73,7 @@ TEST_CASE("makeTexturedQuad moves the quad out along +Z by the depth offset", "[
 
 TEST_CASE("makeTexturedQuad keeps the sign of zero coordinates exactly as the parsers did", "[geometry]")
 {
-    // A texture narrower than 16 px gives size 0 (integer division, Task 28). Without depth offset (NPCs) the left X is
+    // Size 0 (before Task 28, any texture narrower than 16 px). Without depth offset (NPCs) the left X is
     // -0; with depth offset (background planes) the old code added the offset vector, which turned -0 into +0.
     const UvRect uv{Vec2f{0.0f, 0.0f}, Vec2f{1.0f, 1.0f}};
 
