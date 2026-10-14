@@ -55,7 +55,13 @@ namespace
             if(result.find(emplacement.m_Id) != result.cend())
                 continue;
 
-            // \todo what is -1
+            // Id -1 is not a trile: no trile set has an entry -1 (keys start at 0), so there is no geometry to place.
+            // What the game uses these cells for is unknown. Checked in the FEZ data (156 levels, Task 30): 16558 of
+            // 379557 Triles entries in 18 levels (tree, globe, clock, mines, pivots, ...) have id -1, plus 2269
+            // copies of them inside Groups/TrileGroup. They look like any other entry: an integer emplacement no
+            // other entry uses, a position equal to it (4 exceptions), all orientations 0 to 3, no further children
+            // (no OverlappedTriles), and they are rarely inside an art object (2 %, other triles 14 %). Some are
+            // members of trile groups (moving or spinning parts).
             if(emplacement.m_Id == -1)
                 continue;
 

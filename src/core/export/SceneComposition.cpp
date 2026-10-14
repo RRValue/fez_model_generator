@@ -85,7 +85,7 @@ ComposedScene buildLevelScene(const Level& level)
             continue;
 
         composer.addInstance(trile_geom_find_iter->second, QString::number(te.m_Id),
-                             {.m_Position = te.m_Position, .m_Rotation = trileOrientation(static_cast<int>(te.m_Orientation))});
+                             {.m_Position = te.m_Position, .m_Rotation = trileOrientation(te.m_Orientation)});
     }
 
     for(const auto& bp : level.m_BackgroundPlanes)

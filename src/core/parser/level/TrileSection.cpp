@@ -2,6 +2,7 @@
 
 #include "xml/Xml.h"
 
+#include <format>
 #include <utility>
 
 namespace fez::level
@@ -27,24 +28,29 @@ std::expected<TrileEmplacement, Error> readTrileEntry(const QDomElement& entry_e
 
     result.m_Emplacement = *emplacement;
 
-    // TrileInstance trileId, orientation: read as floats and converted (as before; Task 30 changes this)
+    // TrileInstance trileId, orientation: integers; orientation is a quarter turn about Y, 0 to 3
     const auto instance_elem = childElement(entry_elem, "TrileInstance");
 
     if(!instance_elem)
         return std::unexpected(instance_elem.error());
 
-    const auto trile_id = attribute<float>(*instance_elem, "trileId");
+    const auto trile_id = attribute<int>(*instance_elem, "trileId");
 
     if(!trile_id)
         return std::unexpected(trile_id.error());
 
-    const auto orientation = attribute<float>(*instance_elem, "orientation");
+    const auto orientation = attribute<int>(*instance_elem, "orientation");
 
     if(!orientation)
         return std::unexpected(orientation.error());
 
-    result.m_Id = static_cast<int>(*trile_id);
-    result.m_Orientation = static_cast<unsigned int>(*orientation);
+    if(*orientation < 0 || *orientation > 3)
+        return std::unexpected(Error{ErrorKind::BadValue,
+                                     std::format("attribute 'orientation' is not in 0 to 3: {}", *orientation),
+                                     std::format("{}@orientation", elementPath(*instance_elem))});
+
+    result.m_Id = *trile_id;
+    result.m_Orientation = *orientation;
 
     // TrileInstance/Position/Vector3
     const auto position_elem = childElement(*instance_elem, "Position");

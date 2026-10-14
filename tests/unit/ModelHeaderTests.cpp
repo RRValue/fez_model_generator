@@ -31,7 +31,7 @@ TEST_CASE("Texture animation frames are named AnimationFrame structs", "[model]"
 TEST_CASE("TrileEmplacement orientation is spelled m_Orientation", "[model]")
 {
     fez::TrileEmplacement emplacement;
-    CHECK(emplacement.m_Orientation == 0u);
+    CHECK(emplacement.m_Orientation == 0);
     emplacement.m_Orientation = 3;
-    CHECK(emplacement.m_Orientation == 3u);
+    CHECK(emplacement.m_Orientation == 3);
 }

@@ -1396,10 +1396,42 @@ allocating a mesh/material; callers skip the node as today.
 id −1 represents in the FEZ data and document it at the skip site.
 
 **Acceptance criteria:**
-- [ ] Tests: `trileId="1.5"` → `BadValue`; orientation 4 → `BadValue`.
-- [ ] Comment at the −1 skip explains its meaning (or states it is unknown with the evidence checked).
+- [x] Tests: `trileId="1.5"` → `BadValue`; orientation 4 → `BadValue`.
+- [x] Comment at the −1 skip explains its meaning (or states it is unknown with the evidence checked).
 
 **Verification:** `fez_tests.exe "[level]"`; golden passes (expected unchanged).
+
+**Implementation notes (fez_mode-777.30):**
+- `level::readTriles` reads `trileId` and `orientation` with `attribute<int>` (`QString::toInt`): a non-integer
+  (`1.5`) or non-number is `BadValue` on the attribute. An orientation outside 0–3 is `BadValue` (`"attribute
+  'orientation' is not in 0 to 3: <n>"`, source `<element path>@orientation`), checked after both attributes are read.
+  `TrileEmplacement::m_Orientation` is now `int` (was `unsigned`), so `buildLevelScene` passes it to
+  `trileOrientation(int)` without a cast. Id −1 is still read and kept; `resolveTriles` skips it as before.
+- **Real data checked before the change** (`Z:/fez_data/golden/input/levels`, 156 level files, plus the 5 in
+  `levels/trial`, which the converter does not read): all 424151 `TrileInstance` elements (incl. `OverlappedTriles`
+  and `Groups`) have an integer `trileId` and an `orientation` of 0–3 (88505 / 85359 / 135929 / 114358), so no level
+  changes its result and the output is expected to stay unchanged.
+- **Id −1 evidence** (Python/`ElementTree` over the same 156 files): 16558 of 379557 `Triles/Entry` elements in 18
+  levels (`clock`, `fractal`, `globe`, `industrial_superspin`, `mine_a`, `mine_bomb_pillar`, `mine_wrap`, `pivot_one`,
+  `pivot_two`, `pivot_three`, `pyramid`, `quantum`, `tree`, `tree_crumble`, `tree_roots`, `tree_sky`, `wall_village`,
+  `zu_library`; trile sets ZU, TREE, LIB_INT, INDUSTRIAL, NEW_MINES, PYRAMID, RANDOM, Untitled, WALL) have id −1; the
+  other 2269 of the 18827 `trileId="-1"` attributes are copies of those instances in `Groups/TrileGroup/Triles`
+  (moving/spinning groups), none is in `OverlappedTriles`. No trile set has a `TrileEntry key="-1"` (keys start at 0).
+  The −1 entries look like any other: integer emplacement, never shared with another entry (no level has duplicate
+  emplacements), `Position` equal to the emplacement except 4, all four orientations (7425 / 3928 / 2508 / 2697 for
+  2 / 0 / 3 / 1), no child besides `Position`. Only 2.2 % of them lie inside an art object's bounding box (other
+  triles: 14.1 %). So the hypotheses "cell covered by an art object" and "placeholder for an overlapped trile" are not
+  supported; the meaning in the game stays unknown. Comment at the skip in `ResolveLevel.cpp`; the `ResolveLevel.h`
+  contract now says "no trile" instead of "meaning unknown, Task 30".
+- Tests (`[level]`): in `readLevel fails the whole level for a broken trile entry` the rows `trileId not an integer`
+  (`1.5`), `orientation not an integer` (`1.5`), `orientation 4` and `orientation -1` (all `BadValue` on the
+  attribute); `level_valid.xml`'s third trile is now `trileId="3" orientation="1"` (was `3.9`/`1.5`, truncated) and the
+  orientation checks compare with `int`. `ModelHeaderTests` compares `m_Orientation` with `int`. Seen failing
+  (`trileId not an integer` still parsed) before the fix.
+- `tests/data/mini_expected` unchanged.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[level]"` 31 test cases / 495 assertions passed;
+  `ctest --preset windows-debug` 200/200; `ctest --preset windows-release-golden` passed against `golden/v3` (560 s),
+  so no new golden version.
 
 **Dependencies:** Task 27
 
@@ -1490,7 +1522,9 @@ policy decided in Open Questions.
 
 - **Texture overwrite policy (Task 32):** decided 2026-10-14 by the user: **overwrite** existing destination
   textures, like the OBJ/MTL files. Re-running into an existing output folder then gives the same result as a fresh one.
-- **Trile id −1 (Task 30):** meaning unknown; to be investigated against the FEZ data.
+- **Trile id −1 (Task 30):** investigated 2026-10-14: −1 is not a trile (no trile set has an entry −1; keys start
+  at 0), so skipping it loses no geometry. What the game uses these cells for is **unknown**; the data gives no
+  further hint (see the Task 30 notes for the evidence). Documented at the skip in `resolveTriles`.
 - **Golden reference location:** confirmed `Z:/fez_data/golden/v<N>` (v1 from Phase 0, v2 from Task 28).
 
 ## Notes

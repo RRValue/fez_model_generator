@@ -22,7 +22,7 @@
     </Entry>
     <Entry>
       <TrileEmplacement x="-4" y="5" z="6"/>
-      <TrileInstance trileId="3.9" orientation="1.5">
+      <TrileInstance trileId="3" orientation="1">
         <Position>
           <Vector3 x="-4.0" y="5.0" z="6.5"/>
         </Position>

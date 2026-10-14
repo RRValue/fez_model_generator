@@ -14,7 +14,7 @@ class AssetRepository;
 // Builds a Level from a LevelDescription by loading everything it references from the repository (shared by all
 // levels of a run, thread-safe). Steps, in this order (the first error is returned and the level gets no output):
 //  - triles: the trile set m_TrileSetName (its repository error; BadValue when it has no triles, even if the level
-//    places none), then one geometry per used trile id; id -1 is skipped (meaning unknown, Task 30), any other id
+//    places none), then one geometry per used trile id; id -1 is skipped (no trile; see resolveTriles), any other id
 //    that is not in the set fails (BadValue)
 //  - art objects: one geometry per used name (the repository error of the first one that fails)
 //  - background planes: all textures "background planes/<texture name>" (static or animated as described), then one

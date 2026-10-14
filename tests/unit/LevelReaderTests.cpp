@@ -97,17 +97,16 @@ TEST_CASE("parseLevel reads the Triles section", "[level]")
 
     CHECK(triles[0].m_Emplacement == Vec3f{1.0f, 2.0f, 3.0f});
     CHECK(triles[0].m_Id == 7);
-    CHECK(triles[0].m_Orientation == 2u);
+    CHECK(triles[0].m_Orientation == 2);
     CHECK(triles[0].m_Position == Vec3f{1.5f, 2.25f, -3.0f});
 
     // Id -1 is kept here (the level parser skips it when looking up geometries).
     CHECK(triles[1].m_Id == -1);
-    CHECK(triles[1].m_Orientation == 0u);
+    CHECK(triles[1].m_Orientation == 0);
 
-    // trileId and orientation are read as floats and truncated (as before; Task 30 changes this).
     CHECK(triles[2].m_Emplacement == Vec3f{-4.0f, 5.0f, 6.0f});
     CHECK(triles[2].m_Id == 3);
-    CHECK(triles[2].m_Orientation == 1u);
+    CHECK(triles[2].m_Orientation == 1);
     CHECK(triles[2].m_Position == Vec3f{-4.0f, 5.0f, 6.5f});
 }
 
@@ -228,11 +227,27 @@ TEST_CASE("readLevel fails the whole level for a broken trile entry", "[level]")
          broken("<Entry>" + emplacement + "<TrileInstance trileId=\"x\" orientation=\"1\">" + position
                 + "</TrileInstance></Entry>"),
          ErrorKind::BadValue, "Level/Triles/Entry[2]/TrileInstance@trileId"},
+        {"trileId not an integer",
+         broken("<Entry>" + emplacement + "<TrileInstance trileId=\"1.5\" orientation=\"1\">" + position
+                + "</TrileInstance></Entry>"),
+         ErrorKind::BadValue, "Level/Triles/Entry[2]/TrileInstance@trileId"},
         {"orientation missing",
          broken("<Entry>" + emplacement + "<TrileInstance trileId=\"4\">" + position + "</TrileInstance></Entry>"),
          ErrorKind::MissingAttribute, "Level/Triles/Entry[2]/TrileInstance@orientation"},
         {"orientation not a number",
          broken("<Entry>" + emplacement + "<TrileInstance trileId=\"4\" orientation=\"north\">" + position
+                + "</TrileInstance></Entry>"),
+         ErrorKind::BadValue, "Level/Triles/Entry[2]/TrileInstance@orientation"},
+        {"orientation not an integer",
+         broken("<Entry>" + emplacement + "<TrileInstance trileId=\"4\" orientation=\"1.5\">" + position
+                + "</TrileInstance></Entry>"),
+         ErrorKind::BadValue, "Level/Triles/Entry[2]/TrileInstance@orientation"},
+        {"orientation 4",
+         broken("<Entry>" + emplacement + "<TrileInstance trileId=\"4\" orientation=\"4\">" + position
+                + "</TrileInstance></Entry>"),
+         ErrorKind::BadValue, "Level/Triles/Entry[2]/TrileInstance@orientation"},
+        {"orientation -1",
+         broken("<Entry>" + emplacement + "<TrileInstance trileId=\"4\" orientation=\"-1\">" + position
                 + "</TrileInstance></Entry>"),
          ErrorKind::BadValue, "Level/Triles/Entry[2]/TrileInstance@orientation"},
         {"position y missing",
