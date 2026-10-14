@@ -8,8 +8,7 @@
 #include <QtCore/QByteArray>
 #include <QtXml/QDomDocument>
 
-#include <cstddef>
-#include <limits>
+#include <string>
 
 using fez::ErrorKind;
 using fez::Vec2f;
@@ -30,6 +29,25 @@ QDomDocument parseInline(const char* xml)
     auto document = fez::parseXml(QByteArray(xml), QStringLiteral("inline"));
     REQUIRE(document.has_value());
     return *document;
+}
+
+// A Vertices element with three vertices.
+std::string threeVertices()
+{
+    return "<Vertices>"
+           "<VertexPositionNormalTextureInstance>"
+           "<Position><Vector3 x='0' y='0' z='0'/></Position><Normal>0</Normal>"
+           "<TextureCoord><Vector2 x='0' y='0'/></TextureCoord>"
+           "</VertexPositionNormalTextureInstance>"
+           "<VertexPositionNormalTextureInstance>"
+           "<Position><Vector3 x='1' y='0' z='0'/></Position><Normal>0</Normal>"
+           "<TextureCoord><Vector2 x='0' y='0'/></TextureCoord>"
+           "</VertexPositionNormalTextureInstance>"
+           "<VertexPositionNormalTextureInstance>"
+           "<Position><Vector3 x='0' y='1' z='0'/></Position><Normal>0</Normal>"
+           "<TextureCoord><Vector2 x='0' y='0'/></TextureCoord>"
+           "</VertexPositionNormalTextureInstance>"
+           "</Vertices>";
 }
 
 } // namespace
@@ -125,23 +143,48 @@ TEST_CASE("parseGeometry requires Vertices and Indices but accepts them empty", 
     CHECK(geometry->m_Indices.empty());
 }
 
-TEST_CASE("parseGeometry rejects a non-numeric index and wraps a negative one", "[parser]")
+TEST_CASE("parseGeometry rejects a non-numeric, negative or out-of-range index", "[parser]")
 {
-    const auto bad = parseInline("<ShaderInstancedIndexedPrimitives><Vertices/>"
-                                 "<Indices><Index>0</Index><Index>x</Index><Index>1</Index></Indices>"
-                                 "</ShaderInstancedIndexedPrimitives>");
+    // Three vertices, so the valid indices are 0, 1 and 2.
+    const auto three_vertices = threeVertices();
+    const auto with_indices = [&](const char* indices) {
+        return parseInline(("<ShaderInstancedIndexedPrimitives>" + three_vertices + "<Indices>" + indices +
+                            "</Indices></ShaderInstancedIndexedPrimitives>")
+                               .c_str());
+    };
+
+    const auto bad = with_indices("<Index>0</Index><Index>x</Index><Index>1</Index>");
     const auto bad_result = fez::parseGeometry(bad.documentElement());
     REQUIRE_FALSE(bad_result.has_value());
     CHECK(bad_result.error().kind == ErrorKind::BadValue);
     CHECK(bad_result.error().source == "ShaderInstancedIndexedPrimitives/Indices/Index[2]");
 
-    // The index text is read as int and stored in size_t, as before.
-    const auto negative = parseInline("<ShaderInstancedIndexedPrimitives><Vertices/>"
-                                      "<Indices><Index>-1</Index><Index>0</Index><Index>1</Index></Indices>"
-                                      "</ShaderInstancedIndexedPrimitives>");
+    const auto valid = with_indices("<Index>2</Index><Index>1</Index><Index>0</Index>");
+    const auto valid_result = fez::parseGeometry(valid.documentElement());
+    REQUIRE(valid_result.has_value());
+    const auto expected_indices = fez::Geometry::Indices{2, 1, 0};
+    CHECK(valid_result->m_Indices == expected_indices);
+
+    const auto negative = with_indices("<Index>0</Index><Index>-1</Index><Index>1</Index>");
     const auto negative_result = fez::parseGeometry(negative.documentElement());
-    REQUIRE(negative_result.has_value());
-    CHECK(negative_result->m_Indices[0] == std::numeric_limits<std::size_t>::max());
+    REQUIRE_FALSE(negative_result.has_value());
+    CHECK(negative_result.error().kind == ErrorKind::BadValue);
+    CHECK(negative_result.error().source == "ShaderInstancedIndexedPrimitives/Indices/Index[2]");
+
+    const auto out_of_range = with_indices("<Index>0</Index><Index>1</Index><Index>3</Index>");
+    const auto out_of_range_result = fez::parseGeometry(out_of_range.documentElement());
+    REQUIRE_FALSE(out_of_range_result.has_value());
+    CHECK(out_of_range_result.error().kind == ErrorKind::BadValue);
+    CHECK(out_of_range_result.error().source == "ShaderInstancedIndexedPrimitives/Indices/Index[3]");
+
+    // Without vertices every index is out of range.
+    const auto no_vertices = parseInline("<ShaderInstancedIndexedPrimitives><Vertices/>"
+                                         "<Indices><Index>0</Index><Index>0</Index><Index>0</Index></Indices>"
+                                         "</ShaderInstancedIndexedPrimitives>");
+    const auto no_vertices_result = fez::parseGeometry(no_vertices.documentElement());
+    REQUIRE_FALSE(no_vertices_result.has_value());
+    CHECK(no_vertices_result.error().kind == ErrorKind::BadValue);
+    CHECK(no_vertices_result.error().source == "ShaderInstancedIndexedPrimitives/Indices/Index[1]");
 }
 
 TEST_CASE("parseGeometry treats every element after the first vertex or index as one", "[parser]")
@@ -159,9 +202,10 @@ TEST_CASE("parseGeometry treats every element after the first vertex or index as
     CHECK(vertices_result.error().kind == ErrorKind::MissingElement);
     CHECK(vertices_result.error().source == "ShaderInstancedIndexedPrimitives/Vertices/Other/Position");
 
-    const auto indices = parseInline("<ShaderInstancedIndexedPrimitives><Vertices/><Indices>"
-                                     "<Skipped>7</Skipped><Index>0</Index><Other>1</Other><Index>2</Index>"
-                                     "</Indices></ShaderInstancedIndexedPrimitives>");
+    const auto indices = parseInline(("<ShaderInstancedIndexedPrimitives>" + threeVertices() +
+                                      "<Indices><Skipped>7</Skipped><Index>0</Index><Other>1</Other><Index>2</Index>"
+                                      "</Indices></ShaderInstancedIndexedPrimitives>")
+                                         .c_str());
     const auto indices_result = fez::parseGeometry(indices.documentElement());
     REQUIRE(indices_result.has_value());
     const auto expected_indices = fez::Geometry::Indices{0, 1, 2};

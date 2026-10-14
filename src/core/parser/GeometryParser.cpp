@@ -113,7 +113,8 @@ std::expected<Geometry::Vertices, Error> parseVertices(const QDomElement& elem)
     return result;
 }
 
-std::expected<Geometry::Indices, Error> parseIndices(const QDomElement& elem)
+// Every index must be a non-negative int below vertex_count.
+std::expected<Geometry::Indices, Error> parseIndices(const QDomElement& elem, size_t vertex_count)
 {
     const auto index_elems = elementsFrom(elem, QStringLiteral("Index"));
     const auto index_count = static_cast<size_t>(std::ranges::distance(index_elems));
@@ -132,8 +133,17 @@ std::expected<Geometry::Indices, Error> parseIndices(const QDomElement& elem)
         if(!index)
             return std::unexpected(index.error());
 
-        // Stored in size_t as before: a negative index wraps.
-        result.push_back(static_cast<size_t>(*index));
+        if(*index < 0)
+            return std::unexpected(
+                Error{ErrorKind::BadValue, std::format("index is negative: {}", *index), elementPath(index_elem)});
+
+        const auto value = static_cast<size_t>(*index);
+        if(value >= vertex_count)
+            return std::unexpected(Error{ErrorKind::BadValue,
+                                         std::format("index {} is not below the vertex count {}", value, vertex_count),
+                                         elementPath(index_elem)});
+
+        result.push_back(value);
     }
 
     return result;
@@ -166,7 +176,7 @@ std::expected<Geometry, Error> parseGeometry(const QDomElement& element)
     if(!indices_elem)
         return std::unexpected(indices_elem.error());
 
-    auto indices = parseIndices(*indices_elem);
+    auto indices = parseIndices(*indices_elem, vertices->size());
     if(!indices)
         return std::unexpected(std::move(indices.error()));
 

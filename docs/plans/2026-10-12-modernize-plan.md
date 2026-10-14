@@ -1558,6 +1558,30 @@ policy decided in Open Questions.
 
 ## Follow-up work
 
+### fez_mode-777.35: Reject negative and out-of-range geometry indices
+
+**Description:** `parseGeometry` read `Index` text with `QString::toInt` and stored it as `size_t`, so a negative
+index wrapped to a huge value (pinned in Task 14). Reject negative indices and indices >= the vertex count with
+`ErrorKind::BadValue`.
+
+**Data findings** (Python/`ElementTree` over the 558 XML files of `Z:/fez_data/golden/input/art objects` and
+`trile sets`, 2026-10-14, same sibling iteration as the parser): 2980 `ShaderInstancedIndexedPrimitives`, 1601808
+indices; 0 negative, 0 not an integer, 0 >= the geometry's vertex count. No output change expected.
+
+**Implementation notes (fez_mode-777.35):**
+- `GeometryParser.cpp`: `parseIndices(elem, vertex_count)` is called after the vertices are parsed; each index is
+  still read with `readIntText` (non-integer → `BadValue` as before), then a negative value → `BadValue` "index is
+  negative" and a value >= the vertex count → `BadValue` "index … is not below the vertex count …", both with the
+  `Index` element path as source. The count-divisible-by-3 check still comes first. Contract comment in
+  `GeometryParser.h` updated. As before, a failed geometry drops the art object or trile set.
+- Tests (`[parser]`): the pinning test is replaced by `parseGeometry rejects a non-numeric, negative or out-of-range
+  index` (three vertices: valid `2 1 0`; `x` at `Index[2]`; `-1` at `Index[2]`; `3` at `Index[3]`; no vertices →
+  `Index[1]`). The non-numeric case and the sibling-iteration test now have three vertices, since their indices would
+  otherwise be out of range. Seen failing before the fix.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[parser]"` 41 test cases / 428 assertions;
+  `ctest --preset windows-debug` 213/213; `ctest --preset windows-release-golden` passed against
+  `golden/v4` (482 s). **No output change, no `v5`.**
+
 ### fez_mode-777.38: Export OverlappedTriles instances
 
 **Description:** The level parser read only `Level/Triles/Entry/TrileInstance`; the trile instances listed in a
