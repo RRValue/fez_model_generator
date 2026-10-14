@@ -45,21 +45,45 @@ set_target_properties(fez_model_generator PROPERTIES
     VS_DEBUGGER_COMMAND_ARGUMENTS "${FEZ_DEBUG_ARGS}"
 )
 
-# Make the build-tree executable runnable: assimp DLLs are copied by vcpkg
-# app-local deployment; Qt DLLs and plugins are deployed into the output
-# directory (never into the source tree). Install-time deployment follows later.
-if(WIN32)
-    find_program(FEZ_WINDEPLOYQT windeployqt HINTS "${FEZ_QT_BIN_DIR}" NO_DEFAULT_PATH)
-    if(NOT FEZ_WINDEPLOYQT)
-        message(FATAL_ERROR "windeployqt not found next to qmake in '${FEZ_QT_BIN_DIR}'.")
-    endif()
+# --- Build tree ---------------------------------------------------------------
+# Keep build/<preset>/bin/<Config>/fez_model_generator.exe runnable without Qt on PATH: vcpkg app-local deployment
+# copies assimp and its dependencies; this copies the DLLs of the linked imported targets (Qt6Core, Qt6Gui, Qt6Xml,
+# Qt6Concurrent, assimp). No Qt plugins are needed: the converter is a QCoreApplication and PNG support is built into
+# Qt6Gui. Tests do not depend on this copy (they get Qt and vcpkg bin via DL_PATHS / ENVIRONMENT_MODIFICATION).
+add_custom_command(TARGET fez_model_generator POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:fez_model_generator> "$<TARGET_FILE_DIR:fez_model_generator>"
+    COMMAND_EXPAND_LISTS
+    COMMENT "Copying runtime DLLs next to fez_model_generator"
+    VERBATIM
+)
 
-    add_custom_command(TARGET fez_model_generator POST_BUILD
-        COMMAND "${FEZ_WINDEPLOYQT}"
-                $<$<CONFIG:Debug>:--debug>$<$<NOT:$<CONFIG:Debug>>:--release>
-                --no-translations --no-compiler-runtime --verbose 0
-                "$<TARGET_FILE:fez_model_generator>"
-        COMMENT "Deploying Qt runtime next to fez_model_generator"
-        VERBATIM
-    )
-endif()
+# --- Install: cmake --install build/windows-vs --config Release --prefix <dir> -----------------------------------
+# <dir>/bin holds a self-contained converter: the executable, the Qt runtime (windeployqt via Qt's deploy script),
+# assimp and its vcpkg dependencies (runtime dependency set, resolved in the vcpkg bin directory of the installed
+# configuration) and the MSVC runtime (InstallRequiredSystemLibraries).
+include(GNUInstallDirs)
+
+install(TARGETS fez_model_generator
+    RUNTIME_DEPENDENCY_SET fez_runtime_dependencies
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Qt libraries are deployed by the Qt deploy script below; Windows API sets and system DLLs are never copied.
+install(RUNTIME_DEPENDENCY_SET fez_runtime_dependencies
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+    DIRECTORIES "${FEZ_VCPKG_BIN_DIR}"
+    PRE_EXCLUDE_REGEXES "^api-ms-" "^ext-ms-" "^[Qq]t6"
+    POST_EXCLUDE_REGEXES "[/\\\\][Ss]ystem32[/\\\\]" "[/\\\\][Ww]indows[/\\\\]"
+)
+
+qt_generate_deploy_app_script(
+    TARGET fez_model_generator
+    OUTPUT_SCRIPT FEZ_QT_DEPLOY_SCRIPT
+    NO_TRANSLATIONS
+    NO_COMPILER_RUNTIME
+)
+install(SCRIPT "${FEZ_QT_DEPLOY_SCRIPT}")
+
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION ${CMAKE_INSTALL_BINDIR})
+include(InstallRequiredSystemLibraries)

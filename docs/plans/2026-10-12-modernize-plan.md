@@ -1274,12 +1274,35 @@ and assimp DLLs. README documents vcpkg setup (`vcpkg install assimp eigen3 catc
 `CMakeUserPresets.json`, build/test commands, CLI usage, the Blender helper script, and golden test setup.
 
 **Acceptance criteria:**
-- [ ] `cmake --install build/windows-vs --config Release --prefix <dir>` yields a folder where
+- [x] `cmake --install build/windows-vs --config Release --prefix <dir>` yields a folder where
       `fez_model_generator.exe --help` runs with neither Qt nor vcpkg on `PATH`.
-- [ ] README lets a new developer build and test from a fresh clone.
+- [x] README lets a new developer build and test from a fresh clone.
 
 **Verification:**
-- [ ] Manual: install to a temp dir, run `--help` and the mini export from there.
+- [x] Manual: install to a temp dir, run `--help` and the mini export from there.
+
+**Implementation notes (fez_mode-777.27):**
+- `src/cli/CMakeLists.txt`: `install(TARGETS fez_model_generator RUNTIME_DEPENDENCY_SET …)` into `<prefix>/bin`;
+  `install(RUNTIME_DEPENDENCY_SET …)` resolves assimp and its vcpkg DLLs (`kubazip`, `minizip`, `poly2tri`, `pugixml`,
+  `z`) in `FEZ_VCPKG_BIN_DIR` (Qt, API sets and system DLLs excluded); `qt_generate_deploy_app_script(… NO_TRANSLATIONS
+  NO_COMPILER_RUNTIME)` + `install(SCRIPT …)` deploys Qt (windeployqt: `Qt6Core/Gui/Xml/Concurrent` plus what Qt6Gui
+  pulls in, plugins in `<prefix>/plugins`, `qt.conf`); `InstallRequiredSystemLibraries` adds the MSVC runtime to `bin`
+  (the folder then also runs without the VC++ redistributable).
+- **Deviation – build tree keeps its DLLs (spec: "Qt DLLs are deployed only on install"):** the post-build
+  `windeployqt` is gone; instead a post-build `cmake -E copy_if_different $<TARGET_RUNTIME_DLLS:fez_model_generator>`
+  copies only the DLLs of the linked imported targets (4 Qt DLLs, assimp; no plugins) next to the exe, so
+  `build/windows-vs/bin/<Config>/fez_model_generator.exe` (Common Commands, `FEZ_DEBUG_ARGS`/F5) still runs without Qt
+  on `PATH`. Tests do not rely on it (`DL_PATHS` / `ENVIRONMENT_MODIFICATION` as before).
+- The `CXX26` → `/std:c++latest` mapping stays: CMake 4.4.2's `Modules/Compiler/MSVC-CXX.cmake` still defines no
+  `CMAKE_CXX26_STANDARD_COMPILE_OPTION` for MSVC (newest is CXX23).
+- README rewritten: requirements, vcpkg setup, copying the whole `CMakeUserPresets.example.json`, build/test presets,
+  golden setup (`FEZ_DATA_DIR`/`FEZ_GOLDEN_DIR`, `windows-*-golden`), CLI options and exit codes, `--verbose`, install,
+  Blender helper, layout.
+- Checks (Qt removed from `PATH`; vcpkg was not on it): clean configure (`build/windows-vs` deleted), Debug and
+  Release build; `ctest --preset windows-debug` and `windows-release` 199/199; build-tree Debug and Release exes on a
+  mini copy equal `mini_expected`; `cmake --install … --config Release --prefix <temp>/install`: `--help` exit 0, mini
+  copy converted (exit 0, output equals `mini_expected`, input unchanged), temp install deleted;
+  `ctest --preset windows-release-golden` passed against `golden/v1` (511 s).
 
 **Dependencies:** Task 26
 
@@ -1288,8 +1311,11 @@ and assimp DLLs. README documents vcpkg setup (`vcpkg install assimp eigen3 catc
 **Estimated scope:** S
 
 ### Checkpoint: Phase 1 complete
-- [ ] Golden output byte-identical to `golden/v1`; default tests pass; release build passes too.
-- [ ] Dependency direction holds: only `export/` includes assimp, only `xml/`/`parser/` include `QDom*`.
+- [x] Golden output byte-identical to `golden/v1`; default tests pass; release build passes too.
+  (fez_mode-777.27: `windows-release-golden` passed; `ctest --preset windows-debug` and `windows-release` 199/199.)
+- [x] Dependency direction holds: only `export/` includes assimp, only `xml/`/`parser/` include `QDom*`.
+  (fez_mode-777.27: assimp only in `src/core/export/` (`.cpp`; headers forward-declare), `QDom*` only in
+  `src/core/xml/` and `src/core/parser/`.)
 - [ ] Human review before behavior changes.
 
 ---
