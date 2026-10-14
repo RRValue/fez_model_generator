@@ -22,7 +22,10 @@ struct PipelineOptions
 // the call (options.m_Jobs threads) and returns one FileReport per file in that order. All phases of a run share the
 // repository, so an asset is loaded once per run; each call copies textures with its own TextureCopier (the phases
 // write into separate folders). A failed file is reported and skipped; the other files still convert. An exception
-// from converting one file (only std::bad_alloc in practice) is reported as an Io error of that file.
+// from converting one file (only std::bad_alloc in practice) is reported as an Io error of that file. A texture that
+// cannot be copied is reported as an Io error of the file (its OBJ/MTL and the other textures are still written).
+// Existing output files (OBJ, MTL and textures) are replaced, so converting into an existing output folder gives the
+// same result as a fresh one.
 //
 // Phase 1 rule: the output is exactly what the old Application wrote.
 

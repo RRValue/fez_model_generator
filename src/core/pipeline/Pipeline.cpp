@@ -47,16 +47,23 @@ QStringList listXmlFiles(const QString& dir)
 }
 
 // Exports <dir>/<name>.obj/.mtl and, only when that succeeded, copies the scene's textures into dir (as the old
-// Writer::save). On an export error the files of this scene are missing from the output.
+// Writer::save). On an export error the files of this scene are missing from the output. A texture that cannot be
+// copied does not stop the other copies; the first copy error (kind Io) is returned.
 ExportResult exportScene(const ComposedScene& composed, const QString& dir, const QString& name, TextureCopier& texture_copier)
 {
     if(auto exported = exportObj(*composed.m_Scene, dir, name); !exported)
         return exported;
 
-    for(const auto& texture : composed.m_Textures)
-        texture_copier.copy(texture.m_Source, dir + "/" + texture.m_Name);
+    ExportResult result;
 
-    return {};
+    for(const auto& texture : composed.m_Textures)
+    {
+        // the copier skips a destination it already copied, so a scene's duplicate entries cost nothing
+        if(auto copied = texture_copier.copy(texture.m_Source, dir + "/" + texture.m_Name); !copied && result)
+            result = std::unexpected(std::move(copied.error()));
+    }
+
+    return result;
 }
 
 // The output directory of one geometry export is created before its scene is built, as the old GeometryWriter's

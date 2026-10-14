@@ -54,10 +54,11 @@ without changing a single output byte. Phase 2 fixes known bugs, one deliberatel
 | All default tests | `ctest --preset windows-debug` |
 | Focused tests | `build\windows-vs\bin\Debug\fez_tests.exe "[tag]"` |
 | Golden test | `ctest --preset windows-debug-golden` or `windows-release-golden` (needs `FEZ_DATA_DIR`, `FEZ_GOLDEN_DIR`; see Task 5) |
-| Run converter | `build\windows-vs\bin\Debug\fez_model_generator.exe --input <export> --output <fresh dir> [--only ao,ts,lv] [--jobs N] [--verbose]` (exit 0 all converted, 1 any asset failed, 2 usage error) |
+| Run converter | `build\windows-vs\bin\Debug\fez_model_generator.exe --input <export> --output <dir> [--only ao,ts,lv] [--jobs N] [--verbose]` (exit 0 all converted, 1 any asset failed, 2 usage error) |
 
-The converter must always write into a **fresh, empty** output directory: `QFile::copy` does not overwrite, so stale
-textures would hide differences.
+Since Task 32 the converter replaces existing output files (OBJ, MTL and textures), so a run into an existing output
+directory gives the same files as a fresh one; files that a run does not write are not deleted. Golden references are
+still generated into a fresh directory.
 
 ## Dependency Graph
 
@@ -1471,10 +1472,46 @@ id −1 represents in the FEZ data and document it at the skip site.
 policy decided in Open Questions.
 
 **Acceptance criteria:**
-- [ ] Test: missing source texture → `Io` error in report.
-- [ ] Test: existing destination handled per the agreed policy.
+- [x] Test: missing source texture → `Io` error in report.
+- [x] Test: existing destination handled per the agreed policy.
 
 **Verification:** `fez_tests.exe "[export]"`; default + golden pass.
+
+**Implementation notes (fez_mode-777.32):**
+- **Measured first (old code):** on the golden input nothing failed silently. Every `map_Kd` reference of every MTL in
+  `golden/v3` (348050 references, 957 of them NPC textures `<npc>/<action>.ani.png`) names an existing file (285
+  nested NPC textures in 219 NPC folders). The NPC folder is always one level below the level folder, which
+  `exportObj` creates before the copies, so the old one-level `QDir::mkdir` was enough. The fixed Release binary run
+  into a fresh directory reports no failure (542/542, 16/16, 156/156, exit 0, 554 s) and its output equals `golden/v3`
+  (SHA-256 by relative path: 9047 / 9047 files, 0 missing, 0 extra, 0 different). **No output change, no `v4`.**
+- `TextureCopier::copy(source, destination)` now returns `std::expected<bool, Error>` (true: this call copied; false:
+  already copied or being copied by this copier). Policy **overwrite** (user decision 2026-10-14): an existing
+  destination file is removed and the source copied (`QFile::copy` never overwrites); all missing directories are
+  created with `makeDirectory` (race-safe; replaces the one-level `QDir::mkdir`). Errors, all kind `Io`: missing source
+  (source: the source path), directory cannot be created (source: the directory), destination cannot be removed, e.g.
+  a directory (source: the destination), copy failed (message with `QFile::errorString`, source: the destination).
+  Each destination is still claimed once under the mutex; a failed copy releases the claim (a later request retries).
+- `Pipeline.cpp` `exportScene`: after a successful OBJ export every texture is copied; a failed copy does not stop the
+  others and the first copy error is returned, so it lands in the file's report (a trile set: per trile) and the run
+  exits 1. Before, copy failures were dropped.
+- Tests: `tests/unit/TextureCopierTests.cpp` (`[export][texture]`, 10 cases): copy, one-level and nested directory
+  creation, existing destination replaced, missing source → `Io`, directory at the destination → `Io` (left intact),
+  directory blocked by a file → `Io`, once per destination incl. path spelling, failure not remembered, 20 rounds × 16
+  threads → exactly one copy and no error (every other round over a stale destination). `tests/unit/PipelineTests.cpp`
+  (`[pipeline][export]`): blocked art object texture and NPC folder → one `Io` error each for the art object and the
+  level, OBJ/MTL and other textures still written; a second conversion (1 and 4 jobs) into the same output folder after
+  overwriting every texture and an OBJ with stale content equals `mini_expected`. `tests/e2e/CliTests.cpp`: a second
+  CLI run into the same folder with a stale NPC texture exits 0 and equals `mini_expected`. The pipeline and CLI
+  re-run tests failed with the old copier (stale textures kept); the copier tests failed to compile. `mini_expected`
+  unchanged.
+- **Overwrite end to end:** after run A above, 28 textures of that output (`lv_export/ARCH` incl. its NPC folders, 5 of
+  `ao_export`, 3 of `ts_export`) were overwritten with junk and the Release binary run again into the same folder:
+  exit 0, no failure (505 s), and the tree equals `golden/v3` (9047 / 9047, 0 missing, 0 extra, 0 different).
+- README and Common Commands: the "always use a fresh, empty output directory" rule is replaced by the overwrite
+  behavior (files a run does not write are not deleted). Risks: the `QFile::copy` and NPC rows are marked resolved.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[export]"` 38 test cases / 536 assertions passed (5
+  repeated runs); `ctest --preset windows-debug` 206/206; `ctest --preset windows-release-golden` passed against
+  `golden/v3` (482 s).
 
 **Dependencies:** Task 27
 
@@ -1523,9 +1560,9 @@ policy decided in Open Questions.
 | Qt (msvc2022 build) vs. VS 18 toolset ABI | Low | MSVC v14x is binary compatible; verified by Task 1 manual run. |
 | Hand-written mini fixtures diverge from real FEZ XML | Medium | Golden test on real data remains the authority; fixtures follow the element/attribute names the parsers read. |
 | Golden test runtime (full export) | Low | Opt-in label `golden`; run at checkpoints and before commits touching core code. |
-| `QFile::copy` no-overwrite hides stale textures | Medium | Fresh temp dirs in all tests; policy revisited in Task 32. |
+| `QFile::copy` no-overwrite hides stale textures | Medium | **Resolved (Task 32):** existing textures are replaced like the OBJ/MTL files; tests still use fresh temp dirs. |
 | Blocking on `shared_future` inside `QThreadPool` workers reduces parallelism | Low | Loads run on the requesting thread (no deadlock); only waiting threads idle briefly. |
-| NPC textures are named `<npc>/<action>.ani.png`, so their copy destination has a nested directory that `Writer::save` creates with `QDir::mkdir(".")`; these copies may fail silently today | Medium | Phase 1 reproduces the behavior unchanged (golden decides). Task 32 surfaces the failures; fixing them adds files to `lv_export/` and therefore requires a new golden version. |
+| NPC textures are named `<npc>/<action>.ani.png`, so their copy destination has a nested directory that `Writer::save` creates with `QDir::mkdir(".")`; these copies may fail silently today | Medium | **Resolved (Task 32):** none failed on the golden input (every NPC directory is one level below the level directory, which `exportObj` creates first). `TextureCopier` now creates all missing directories with `makeDirectory` and reports a failed copy as an `Io` error; the output did not change, so no new golden version. |
 | `exported/` side effect in the input tree (until Task 16) | Low | Golden and mini tests never use a committed or reference directory as `--input` directly (Task 7 copies the fixture); comparisons only cover the output root. Resolved by Task 16; both tests now assert the input stays untouched. |
 
 ## Open Questions
@@ -1596,3 +1633,6 @@ policy decided in Open Questions.
   unchanged because an empty geometry already produced no scene there.
 - **Determinism (v3):** a second Release run into a temp directory equals `v3` (9047 / 9047 files, 0 missing, 0 extra,
   0 different); the temp output was deleted.
+- **Task 32 (texture copy errors, overwrite):** no output change on the golden input, so no `v4`; `v3` stays current.
+  A fresh run and a second run over that output (28 textures made stale first) both equal `v3` (see the Task 32
+  notes); the temp output was deleted.

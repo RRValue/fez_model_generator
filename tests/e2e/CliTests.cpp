@@ -151,6 +151,28 @@ TEST_CASE("CLI: --jobs 1 --verbose converts everything and prints the summary", 
     CHECK_FALSE(result.m_Output.contains("Failed files"));
 }
 
+TEST_CASE("CLI: a second run into the same output folder gives the same output as a fresh run", "[cli][e2e]")
+{
+    MiniCopy mini;
+
+    const auto first = runConverter(mini.arguments());
+    INFO(toStd(first.m_Output));
+    CHECK(first.m_ExitCode == 0);
+    requireTree(fez::testing::testDataPath("mini_expected"), mini.m_Output.path());
+
+    // a stale texture left by an earlier run is replaced
+    QFile stale(mini.m_Output.path() + "/lv_export/MINI/mini_npc/idle.ani.png");
+    REQUIRE(stale.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    REQUIRE(stale.write("stale") == 5);
+    stale.close();
+
+    const auto second = runConverter(mini.arguments());
+    INFO(toStd(second.m_Output));
+    CHECK(second.m_ExitCode == 0);
+    CHECK_FALSE(second.m_Output.contains("Failed files"));
+    requireTree(fez::testing::testDataPath("mini_expected"), mini.m_Output.path());
+}
+
 TEST_CASE("CLI: usage errors exit with code 2 and write nothing", "[cli][e2e]")
 {
     MiniCopy mini;

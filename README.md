@@ -111,7 +111,7 @@ If either variable is unset, the golden test reports "Skipped".
 ## Usage
 
 ```bat
-fez_model_generator --input <FEZ export> --output <fresh output dir> [--only ao,ts,lv] [--jobs N] [--verbose]
+fez_model_generator --input <FEZ export> --output <output dir> [--only ao,ts,lv] [--jobs N] [--verbose]
 ```
 
 | Option | Meaning |
@@ -129,8 +129,9 @@ Exit codes: **0** all assets converted, **1** at least one asset failed, **2** u
 Without `--verbose` a run prints only a summary to stderr: one line per converted kind
 (`Levels: 156 of 156 converted, 0 failed`) and, if anything failed, each failed file with its errors.
 
-Always write into a **fresh, empty** output directory: existing texture files are not overwritten, so stale files
-would remain.
+Existing output files (OBJ, MTL and textures) are replaced, so a run into an existing output directory gives the same
+files as a run into a fresh one. Files that the new run does not write (for example of an asset removed from the
+input) are not deleted. A texture that cannot be copied is reported as an `Io` error of its asset (exit code 1).
 
 ## Install
 

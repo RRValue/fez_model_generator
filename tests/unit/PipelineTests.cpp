@@ -265,6 +265,68 @@ TEST_CASE("Pipeline: export errors are reported per file", "[pipeline]")
     CHECK(reports.m_TrileSets.m_Files.at(0).m_Errors.size() == 2);
 }
 
+TEST_CASE("Pipeline: a texture that cannot be copied is reported as an Io error", "[pipeline][export]")
+{
+    MiniCopy mini;
+    const auto output = mini.m_Output.path();
+
+    // the art object's texture destination is a non-empty directory, and the level's NPC texture directory is a file
+    REQUIRE(QDir().mkpath(output + "/ao_export/mini_ao.png"));
+    writeFile(output + "/ao_export/mini_ao.png/keep.txt", "keep");
+    REQUIRE(QDir().mkpath(output + "/lv_export/MINI"));
+    writeFile(output + "/lv_export/MINI/mini_npc", "file");
+
+    const auto reports = convertAll(mini.m_Input.path(), output);
+
+    for(const auto* report : {&reports.m_ArtObjects, &reports.m_Levels})
+    {
+        INFO(describe(*report));
+        REQUIRE(report->m_Files.size() == 1);
+        CHECK(report->failureCount() == 1);
+
+        const auto& errors = report->m_Files.at(0).m_Errors;
+        REQUIRE(errors.size() == 1);
+        CHECK(errors.front().kind == fez::ErrorKind::Io);
+    }
+
+    requireAllOk(reports.m_TrileSets);
+
+    // the OBJ/MTL files and every other texture are still written
+    requireTree(fez::testing::testDataPath("mini_expected/ts_export"), output + "/ts_export");
+    CHECK(QFileInfo(output + "/ao_export/mini_ao.obj").isFile());
+    CHECK(QFileInfo(output + "/lv_export/MINI/MINI.obj").isFile());
+    CHECK(QFileInfo(output + "/lv_export/MINI/mini_set.png").isFile());
+    CHECK(QFileInfo(output + "/lv_export/MINI/mini_plane.png").isFile());
+}
+
+TEST_CASE("Pipeline: converting into an existing output folder gives the same output as a fresh one", "[pipeline][export]")
+{
+    MiniCopy mini;
+    const auto output = mini.m_Output.path();
+
+    const auto first = convertAll(mini.m_Input.path(), output);
+    requireAllOk(first.m_ArtObjects);
+    requireAllOk(first.m_TrileSets);
+    requireAllOk(first.m_Levels);
+    requireTree(fez::testing::testDataPath("mini_expected"), output);
+
+    // stale output of an earlier run: every texture and an OBJ get different content
+    for(const auto* relative : {"ao_export/mini_ao.png", "ts_export/mini_set/mini_set.png", "lv_export/MINI/mini_set.png",
+                                "lv_export/MINI/mini_ao.png", "lv_export/MINI/mini_plane.png", "lv_export/MINI/mini_anim.ani.png",
+                                "lv_export/MINI/mini_npc/idle.ani.png", "lv_export/MINI/MINI.obj"})
+        writeFile(output + "/" + relative, "stale content of an earlier run");
+
+    for(const auto jobs : {1, 4})
+    {
+        INFO("jobs " << jobs);
+        const auto again = convertAll(mini.m_Input.path(), output, {.m_Jobs = jobs});
+        requireAllOk(again.m_ArtObjects);
+        requireAllOk(again.m_TrileSets);
+        requireAllOk(again.m_Levels);
+        requireTree(fez::testing::testDataPath("mini_expected"), output);
+    }
+}
+
 TEST_CASE("Pipeline: a missing asset folder gives an empty report", "[pipeline]")
 {
     QTemporaryDir input;
