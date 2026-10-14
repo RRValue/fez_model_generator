@@ -1,5 +1,27 @@
 # fez_model_generator: command-line converter (QCoreApplication + QCommandLineParser).
 # Sources are listed explicitly (no file(GLOB)); add new files here.
+# fez_cli holds the testable parts (option parsing, failure summary); fez_tests links it too.
+
+set(FEZ_CLI_LIB_SOURCES
+    Options.h
+    Options.cpp
+    Summary.h
+    Summary.cpp
+)
+
+add_library(fez_cli STATIC ${FEZ_CLI_LIB_SOURCES})
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX cli FILES ${FEZ_CLI_LIB_SOURCES})
+
+# Headers are included relative to src/cli (e.g. "Options.h").
+target_include_directories(fez_cli PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_link_libraries(fez_cli PUBLIC
+    fez_core
+    Qt6::Core
+)
+
+fez_set_project_warnings(fez_cli)
 
 set(FEZ_CLI_SOURCES
     main.cpp
@@ -10,6 +32,7 @@ qt_add_executable(fez_model_generator ${FEZ_CLI_SOURCES})
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX cli FILES ${FEZ_CLI_SOURCES})
 
 target_link_libraries(fez_model_generator PRIVATE
+    fez_cli
     fez_core
     Qt6::Core
 )

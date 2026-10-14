@@ -1,74 +1,52 @@
+#include "Options.h"
+#include "Summary.h"
+
 #include "pipeline/Pipeline.h"
 #include "repository/AssetRepository.h"
 
-#include <QtCore/QCommandLineOption>
-#include <QtCore/QCommandLineParser>
 #include <QtCore/QCoreApplication>
-#include <QtCore/QDebug>
-#include <QtCore/QFileInfo>
+#include <QtCore/QLoggingCategory>
 #include <QtCore/QTextStream>
 
-namespace
-{
-
-constexpr auto usage_error_code = 2;
-
-// Lists every failed file with its errors (the summary and exit codes follow in Task 25).
-void logFailures(const fez::ConversionReport& report)
-{
-    for(const auto& file : report.m_Files)
-    {
-        for(const auto& error : file.m_Errors)
-        {
-            qWarning().noquote() << "Failed:" << file.m_File << "-" << QString::fromUtf8(fez::toString(error.kind)) << QString::fromStdString(error.message) << "-"
-                                 << QString::fromStdString(error.source);
-        }
-    }
-}
-
-} // namespace
+#include <vector>
 
 int main(int argc, char* argv[])
 {
     QCoreApplication application(argc, argv);
 
-    QCommandLineParser parser;
-    parser.setApplicationDescription("Converts a FEZ export into OBJ models.");
-    parser.addHelpOption();
+    const auto options = fez::cli::parseOptions(QCoreApplication::arguments());
 
-    const auto input_option = QCommandLineOption("input", "FEZ export root (contains \"art objects\", \"trile sets\", \"levels\", ...).", "dir");
-    const auto output_option = QCommandLineOption("output", "Output root for ao_export/, ts_export/ and lv_export/. Defaults to --input.", "dir");
+    if(!options)
+    {
+        auto stream = QTextStream(options.error().m_ExitCode == fez::cli::success_exit_code ? stdout : stderr);
+        stream << options.error().m_Text;
+        stream.flush();
+        return options.error().m_ExitCode;
+    }
 
-    parser.addOption(input_option);
-    parser.addOption(output_option);
+    // Debug messages (qDebug) only with --verbose.
+    if(!options->m_Verbose)
+        QLoggingCategory::setFilterRules("default.debug=false");
 
-    parser.process(QCoreApplication::arguments());
+    const auto pipeline_options = fez::PipelineOptions{.m_Jobs = options->m_Jobs};
 
+    // All phases share one repository: trile sets, art objects and textures are loaded once per run.
+    auto repository = fez::AssetRepository(options->m_Input);
+    auto phases = std::vector<fez::cli::PhaseReport>();
+
+    if(options->m_ArtObjects)
+        phases.push_back({"Art objects", fez::convertArtObjects(options->m_Input, options->m_Output, repository, pipeline_options)});
+
+    if(options->m_TrileSets)
+        phases.push_back({"Trile sets", fez::convertTrileSets(options->m_Input, options->m_Output, repository, pipeline_options)});
+
+    if(options->m_Levels)
+        phases.push_back({"Levels", fez::convertLevels(options->m_Input, options->m_Output, repository, pipeline_options)});
+
+    // The summary goes to stderr directly: qWarning ends up in OutputDebugString when the process has no console.
     auto err = QTextStream(stderr);
+    err << fez::cli::formatSummary(phases);
+    err.flush();
 
-    if(!parser.isSet(input_option))
-    {
-        err << "Error: --input is required.\n\n" << parser.helpText();
-        err.flush();
-        return usage_error_code;
-    }
-
-    const auto input_path = parser.value(input_option);
-    const auto output_path = parser.isSet(output_option) ? parser.value(output_option) : input_path;
-
-    if(!QFileInfo(input_path).isDir())
-    {
-        err << "Error: input directory \"" << input_path << "\" does not exist.\n";
-        err.flush();
-        return usage_error_code;
-    }
-
-    // All three phases share one repository: trile sets, art objects and textures are loaded once per run.
-    auto repository = fez::AssetRepository(input_path);
-
-    logFailures(fez::convertArtObjects(input_path, output_path, repository));
-    logFailures(fez::convertTrileSets(input_path, output_path, repository));
-    logFailures(fez::convertLevels(input_path, output_path, repository));
-
-    return 0;
+    return fez::cli::exitCode(phases);
 }

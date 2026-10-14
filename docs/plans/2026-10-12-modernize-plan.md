@@ -54,7 +54,7 @@ without changing a single output byte. Phase 2 fixes known bugs, one deliberatel
 | All default tests | `ctest --preset windows-debug` |
 | Focused tests | `build\windows-vs\bin\Debug\fez_tests.exe "[tag]"` |
 | Golden test | `ctest --preset windows-debug-golden` or `windows-release-golden` (needs `FEZ_DATA_DIR`, `FEZ_GOLDEN_DIR`; see Task 5) |
-| Run converter | `build\windows-vs\bin\Debug\fez_model_generator.exe --input <export> --output <fresh dir>` |
+| Run converter | `build\windows-vs\bin\Debug\fez_model_generator.exe --input <export> --output <fresh dir> [--only ao,ts,lv] [--jobs N] [--verbose]` (exit 0 all converted, 1 any asset failed, 2 usage error) |
 
 The converter must always write into a **fresh, empty** output directory: `QFile::copy` does not overwrite, so stale
 textures would hide differences.
@@ -1180,11 +1180,39 @@ no-overwrite semantics as today). `Writer`, `GeometryWriter`, `LevelWriter` are 
 Decisions), `--verbose`; print a failure summary; exit 0 / 1 (any asset failed) / 2 (usage).
 
 **Acceptance criteria:**
-- [ ] `--only lv` produces only `lv_export/`; invalid `--only` value → exit 2 with message.
-- [ ] Mini e2e with a corrupted fixture copy → exit code 1 and the file listed in the summary.
+- [x] `--only lv` produces only `lv_export/`; invalid `--only` value → exit 2 with message.
+- [x] Mini e2e with a corrupted fixture copy → exit code 1 and the file listed in the summary.
 
 **Verification:**
-- [ ] Tests pass (CLI tests via `QProcess`): `ctest --preset windows-debug`; golden passes.
+- [x] Tests pass (CLI tests via `QProcess`): `ctest --preset windows-debug`; golden passes.
+
+**Implementation notes (fez_mode-777.25):**
+- New static library `fez_cli` (`src/cli/Options.{h,cpp}`, `src/cli/Summary.{h,cpp}`), linked by `fez_model_generator`
+  and `fez_tests`; `main.cpp` only wires them to the pipeline. `fez::cli::parseOptions(arguments)` returns
+  `std::expected<Options, OptionsExit>` (`QCommandLineParser::parse`, no `process`, so nothing exits inside):
+  `--help` → exit 0 with the help text on stdout; every usage error → exit 2 with `Error: <message>` plus the help
+  text on stderr. Usage errors: missing `--input`, `--input` not a directory, `--only` entry other than `ao`/`ts`/`lv`
+  (comma-separated, trimmed, case-sensitive; may be repeated; an empty entry is invalid), `--jobs` not a positive
+  integer, unknown options, and (new) positional arguments. `--only` skips the phase calls in `main`; `--jobs` goes into
+  `PipelineOptions::m_Jobs` (default `defaultJobCount()`).
+- `--verbose`: without it `main` sets `QLoggingCategory::setFilterRules("default.debug=false")`, so the parsers' and
+  pipeline's `qDebug` lines appear only with `--verbose`. Task 26 replaces this with the `fez::log` level.
+- Summary (`fez::cli::formatSummary`) always goes to stderr via `QTextStream` (not `qWarning`): one line per phase that
+  ran, `<name>: <ok> of <total> converted, <failed> failed`; when files failed, `Failed files: <n>` and each failed
+  file with one indented `<kind>: <message> (<source>)` line per error. The per-error `qWarning` "Failed: …" lines of
+  Task 24 are gone. Exit code (`fez::cli::exitCode`): 0 when every report is ok, else 1.
+- The golden input converts without any failure (542/542 art objects, 16/16 trile sets, 156/156 levels, Release run
+  into a fresh directory, exit 0), so the golden and mini e2e tests keep expecting exit code 0. (The one art object and
+  one trile set without a same-named output differ only in the asset name inside the XML.)
+- Tests: `tests/unit/CliOptionsTests.cpp` (`[cli]`, option parsing and summary in-process) and `tests/e2e/CliTests.cpp`
+  (`[cli][e2e]`, the real executable via `QProcess`: `--only lv`, `--only ao,ts`, `--jobs 1 --verbose`, usage errors
+  incl. invalid `--only` with exit 2 and an empty output directory, `--help`, a truncated art object copy → exit 1 and
+  the file in the summary while all other output still equals `mini_expected`). The converter's stderr is a text-mode
+  stream on Windows, so the e2e helper normalizes CRLF. Written first and seen failing to compile.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[cli]"` 11 cases passed; `ctest --preset
+  windows-debug` and `windows-release` 191/191; the real Debug exe run with each option (exit codes 0/0/0/2/2/2/2/0/1
+  for all phases, `--only lv`, `--only ao,ts --jobs 2 --verbose`, `--only xy`, `--jobs 0`, no `--input`, missing
+  input, `--help`, corrupted copy); `ctest --preset windows-release-golden` passed against `golden/v1` (554 s).
 
 **Dependencies:** Task 24
 

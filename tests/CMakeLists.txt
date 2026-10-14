@@ -26,6 +26,7 @@ add_executable(fez_tests
     unit/ObjExportTests.cpp
     unit/TextureCopierTests.cpp
     unit/PipelineTests.cpp
+    unit/CliOptionsTests.cpp
     unit/model_headers/ArtObjectHeader.cpp
     unit/model_headers/BackgroundPlaneHeader.cpp
     unit/model_headers/CharacterHeader.cpp
@@ -35,6 +36,7 @@ add_executable(fez_tests
     unit/model_headers/TrileEmplacementHeader.cpp
     unit/model_headers/VertexHeader.cpp
     e2e/MiniExportTests.cpp
+    e2e/CliTests.cpp
     golden/GoldenTests.cpp
 )
 
@@ -45,16 +47,18 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX tests
           unit/ArtObjectParserTests.cpp unit/TrileSetParserTests.cpp unit/TextureParserTests.cpp
           unit/LevelReaderTests.cpp unit/AssetRepositoryTests.cpp unit/ResolveLevelTests.cpp unit/SceneBuilderTests.cpp
           unit/SceneCompositionTests.cpp unit/ObjExportTests.cpp unit/TextureCopierTests.cpp unit/PipelineTests.cpp
+          unit/CliOptionsTests.cpp
           unit/model_headers/ArtObjectHeader.cpp unit/model_headers/BackgroundPlaneHeader.cpp
           unit/model_headers/CharacterHeader.cpp unit/model_headers/GeometryHeader.cpp
           unit/model_headers/LevelHeader.cpp unit/model_headers/LevelDescriptionHeader.cpp
           unit/model_headers/TrileEmplacementHeader.cpp
           unit/model_headers/VertexHeader.cpp
-          e2e/MiniExportTests.cpp golden/GoldenTests.cpp)
+          e2e/MiniExportTests.cpp e2e/CliTests.cpp golden/GoldenTests.cpp)
 
 target_include_directories(fez_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(fez_tests PRIVATE
+    fez_cli
     fez_core
     assimp::assimp
     Catch2::Catch2
