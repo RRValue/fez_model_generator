@@ -16,6 +16,11 @@ d 1
 illum 1
 map_Kd mini_set.png
 
+newmtl mini_set.png
+d 1
+illum 1
+map_Kd mini_set.png
+
 newmtl mini_plane.png
 d 1
 illum 1

@@ -18,8 +18,9 @@ std::expected<LevelDescription, Error> parseLevel(const QString& path);
 // Reads a loaded level document. Parts, in this order (the first error is returned):
 //  - header: the Level element (QDomDocument::firstChildElement; MissingElement with source "Level"), its
 //    trileSetName and name attributes (MissingAttribute)
-//  - Triles: one TrileEmplacement per entry (TrileEmplacement x/y/z, TrileInstance trileId/orientation and
-//    Position/Vector3, all read with QString::toFloat; trileId and orientation are then converted to int / unsigned)
+//  - Triles: one TrileEmplacement per entry (TrileEmplacement x/y/z, TrileInstance trileId/orientation read as
+//    integers, orientation 0 to 3 (BadValue otherwise), Position/Vector3), followed directly by one TrileEmplacement
+//    per child element of TrileInstance/OverlappedTriles (each read like a TrileInstance, at the entry's emplacement)
 //  - ArtObjects: one ArtObject per entry (ArtObjectInstance name, Position/Vector3, Rotation/Quaternion read as
 //    w, x, y, z, Scale/Vector3)
 //  - BackgroundPlanes: one BackgroundPlaneDescription per entry (BackgroundPlane textureName with every '\' replaced

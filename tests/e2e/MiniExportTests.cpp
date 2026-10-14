@@ -1,6 +1,6 @@
 // Mini end-to-end test: converts the hand-written fixture tests/data/mini_export (one art object, one trile set with
-// two triles, one level with two trile emplacements, one art object instance, a static and an animated background
-// plane and one NPC) and compares the whole output tree byte for byte with tests/data/mini_expected.
+// two triles, one level with two trile emplacements (the second with one overlapped trile), one art object instance, a
+// static and an animated background plane and one NPC) and compares the whole output tree byte for byte with tests/data/mini_expected.
 //
 // The converter runs on a temporary COPY of mini_export, so the committed fixture is never touched; afterwards the
 // copy must still equal the fixture (the converter writes nothing into its input tree).

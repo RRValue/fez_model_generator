@@ -1556,6 +1556,59 @@ policy decided in Open Questions.
 
 ---
 
+## Follow-up work
+
+### fez_mode-777.38: Export OverlappedTriles instances
+
+**Description:** The level parser read only `Level/Triles/Entry/TrileInstance`; the trile instances listed in a
+`TrileInstance`'s `OverlappedTriles` child were never exported. Export them as further trile emplacements; confirm that
+the trile instances in `Groups/TrileGroup` need no export.
+
+**Data findings** (Python/`ElementTree` over the 156 level files of `Z:/fez_data/golden/input/levels`, 2026-10-14):
+- `OverlappedTriles` occurs in 52 levels, as a child of `Triles/Entry/TrileInstance` (891 elements, 1135
+  `TrileInstance` children) and of `Groups/TrileGroup/Triles/TrileInstance` (42 elements, 48 children). Every child is
+  a `TrileInstance` with exactly the attributes `trileId` and `orientation` and a `Position/Vector3`, like a normal
+  instance; there is no nested `OverlappedTriles`. Per entry 1 to 8 overlapped instances (774 entries with 1).
+  Most per level: `globe` 288, `observatory` 157, `zu_library` 66, `zu_city` 62, `wall_village` 59.
+- None has id −1, no parent of an `OverlappedTriles` has id −1, and every overlapped id is a key of the level's trile
+  set. Orientations are 0 to 3 (already checked in Task 30).
+- The positions are their own: only 87 equal the parent instance's position and 290 the entry's emplacement; the
+  offset to the emplacement is mostly within one cell (868), but up to 12 cells (e.g. `(4, 0, 1)` 56 times). 521 of the
+  1135 overlapped instances use a trile with empty geometry (no mesh since Task 29), so 614 add a mesh.
+- 242 overlapped instances equal (id, orientation, position) an instance already in the level (181 equal a `Triles`
+  entry, the others an earlier overlapped instance); 205 of them have geometry (levels `CMY_B`, `CRYPT`, `DRUM`,
+  `GLOBE`, `OBSERVATORY`). They are exported like the others (the data lists them as separate instances; whether the
+  game merges them is unknown), so these 205 meshes coincide with another mesh of the same trile.
+- **Groups:** all 43411 `TrileInstance` elements in `Groups/TrileGroup/Triles` equal (id, orientation, position) a
+  `Triles` entry of the same level, and the 48 overlapped instances below them equal the `OverlappedTriles` list of
+  that entry. Groups only reference instances that are already exported, so they stay unexported.
+
+**Implementation notes (fez_mode-777.38):**
+- `level::readTriles` (`TrileSection.cpp`): `readTrileInstance(element, emplacement)` reads one `TrileInstance`
+  (`trileId`/`orientation` as integers, orientation 0 to 3, `Position/Vector3`, same errors as before);
+  `readTrileEntry` appends the entry's instance and then one `TrileEmplacement` per child element of
+  `TrileInstance/OverlappedTriles` (if present), in XML order, all with the entry's emplacement. So the overlapped
+  instances come directly after their parent instance; scene nodes and meshes follow this order and are named like any
+  trile (node: trile id; mesh: `<id>_<trile name>`). Every child element of `OverlappedTriles` is read as a
+  `TrileInstance` (a broken one fails the whole level like a broken entry); nested `OverlappedTriles` are not read
+  (none in the data). `TrileEmplacement`, `resolveLevel` and `buildLevelScene` are unchanged: an overlapped id −1 is
+  skipped and an unknown id fails the level, exactly as for an entry. Contract comment in `LevelReader.h` updated
+  (it still described the pre-Task-30 `toFloat` reading).
+- Tests (`[level]`): `readLevel reads OverlappedTriles as extra emplacements right after their entry` (three
+  overlapped instances incl. id −1 and a far position, an `InstanceActorSettings` sibling, the next entry after them),
+  `readLevel accepts an empty OverlappedTriles element`, `readLevel fails the whole level for a broken overlapped trile`
+  (no `Position`, no `Vector3`, `trileId` missing / not an integer, `orientation` missing / 4, position not a number,
+  non-instance element; each asserts kind and element path). Seen failing before the fix.
+- Mini fixture: the second entry of `tests/data/mini_export/levels/mini.xml` has one overlapped trile (id 0,
+  orientation 2, position `(1, 0.5, 0)`). `mini_expected/lv_export/MINI/MINI.obj`/`.mtl` regenerated with the Debug
+  binary on a temp copy: one more `0_MINI CUBE` mesh (24 vertices, 12 faces) after `1_MINI SLAB` and one more
+  `mini_set.png` material; CRLF kept, nothing else changed.
+- Golden reference `v4` (see Notes): v3 → v4 differs only in the 35 level OBJ/MTL pairs that gain meshes.
+- Checks: Debug and Release build (no warnings); `fez_tests.exe "[level]"` 34 test cases / 552 assertions passed;
+  `ctest --preset windows-debug` 209/209; `ctest --preset windows-release-golden` passed against `golden/v4` (556 s).
+
+---
+
 ## Parallelization
 
 - Tasks 11, 12, 13 and 17 are independent after Task 10.
@@ -1650,3 +1703,17 @@ policy decided in Open Questions.
 - **Task 32 (texture copy errors, overwrite):** no output change on the golden input, so no `v4`; `v3` stays current.
   A fresh run and a second run over that output (28 textures made stale first) both equal `v3` (see the Task 32
   notes); the temp output was deleted.
+- **Golden reference v4 (fez_mode-777.38):** `Z:/fez_data/golden/v4`, built from the fez_mode-777.38 commit (overlapped
+  triles exported, on top of `272bde9`) with `build/windows-vs/bin/Release/fez_model_generator.exe --input
+  Z:/fez_data/golden/input --output Z:/fez_data/golden/v4` into a fresh directory (exit code 0, 533 s). File counts
+  unchanged: `ao_export` = 1623, `ts_export` = 4737, `lv_export` = 2687; 9047 in total. `v1` to `v3` are kept
+  unchanged. Local `FEZ_GOLDEN_DIR` (all five places in `CMakeUserPresets.json`) points to `v4`.
+- **v3 → v4 diff (SHA-256 by relative path):** 0 missing, 0 extra, 70 different – 35 `lv_export/<LEVEL>/<LEVEL>.obj`
+  and their 35 `.mtl`; no texture, `ao_export` or `ts_export` file changed. Of the 52 levels with overlapped triles,
+  exactly the 35 with at least one overlapped trile of non-empty geometry changed; in the other 17 every overlapped
+  trile has empty geometry (no mesh since Task 29). Per level, the mesh groups (`g` lines) of `v3` are kept in order
+  and the added groups equal, as a multiset of names, the `<id>_<trile name>` of its overlapped instances with
+  geometry: 614 groups added in total = 614 overlapped instances with geometry (1135 overlapped, 521 with empty
+  geometry); each changed MTL gains exactly as many materials as its OBJ gains groups.
+- **Determinism (v4):** a second Release run into a temp directory equals `v4` (9047 / 9047 files, 0 missing, 0 extra,
+  0 different); the temp output was deleted.

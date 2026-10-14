@@ -263,6 +263,107 @@ TEST_CASE("readLevel fails the whole level for a broken trile entry", "[level]")
     });
 }
 
+TEST_CASE("readLevel reads OverlappedTriles as extra emplacements right after their entry", "[level]")
+{
+    // The FEZ data stores further trile instances of a cell in TrileInstance/OverlappedTriles; each one is a
+    // trile of its own (own id, orientation and position) at the entry's emplacement.
+    const QByteArray overlapped = "<Entry><TrileEmplacement x=\"1\" y=\"2\" z=\"3\"/>"
+                                  "<TrileInstance trileId=\"4\" orientation=\"1\">"
+                                  "<Position><Vector3 x=\"1\" y=\"1.5\" z=\"3\"/></Position>"
+                                  "<InstanceActorSettings/>"
+                                  "<OverlappedTriles>"
+                                  "<TrileInstance trileId=\"6\" orientation=\"2\">"
+                                  "<Position><Vector3 x=\"1\" y=\"2\" z=\"3.5\"/></Position></TrileInstance>"
+                                  "<TrileInstance trileId=\"-1\" orientation=\"3\">"
+                                  "<Position><Vector3 x=\"0.5\" y=\"2\" z=\"3\"/></Position></TrileInstance>"
+                                  "<TrileInstance trileId=\"8\" orientation=\"0\">"
+                                  "<Position><Vector3 x=\"5\" y=\"2\" z=\"4\"/></Position></TrileInstance>"
+                                  "</OverlappedTriles></TrileInstance></Entry>";
+    const QByteArray next = "<Entry><TrileEmplacement x=\"7\" y=\"0\" z=\"0\"/>"
+                            "<TrileInstance trileId=\"5\" orientation=\"0\">"
+                            "<Position><Vector3 x=\"7\" y=\"0\" z=\"0\"/></Position></TrileInstance></Entry>";
+
+    const auto description = readInline(level(overlapped + next, validArtObject));
+    REQUIRE(description.has_value());
+
+    const auto& triles = description->m_TrileEmplacements;
+    REQUIRE(triles.size() == 5);
+
+    CHECK(triles[0].m_Id == 4);
+    CHECK(triles[0].m_Orientation == 1);
+    CHECK(triles[0].m_Emplacement == Vec3f{1.0f, 2.0f, 3.0f});
+    CHECK(triles[0].m_Position == Vec3f{1.0f, 1.5f, 3.0f});
+
+    CHECK(triles[1].m_Id == 6);
+    CHECK(triles[1].m_Orientation == 2);
+    CHECK(triles[1].m_Emplacement == Vec3f{1.0f, 2.0f, 3.0f});
+    CHECK(triles[1].m_Position == Vec3f{1.0f, 2.0f, 3.5f});
+
+    // Id -1 is kept here as in a normal entry (resolveLevel skips it).
+    CHECK(triles[2].m_Id == -1);
+    CHECK(triles[2].m_Orientation == 3);
+    CHECK(triles[2].m_Emplacement == Vec3f{1.0f, 2.0f, 3.0f});
+    CHECK(triles[2].m_Position == Vec3f{0.5f, 2.0f, 3.0f});
+
+    CHECK(triles[3].m_Id == 8);
+    CHECK(triles[3].m_Orientation == 0);
+    CHECK(triles[3].m_Emplacement == Vec3f{1.0f, 2.0f, 3.0f});
+    CHECK(triles[3].m_Position == Vec3f{5.0f, 2.0f, 4.0f});
+
+    CHECK(triles[4].m_Id == 5);
+    CHECK(triles[4].m_Emplacement == Vec3f{7.0f, 0.0f, 0.0f});
+}
+
+TEST_CASE("readLevel accepts an empty OverlappedTriles element", "[level]")
+{
+    const QByteArray entry = "<Entry><TrileEmplacement x=\"1\" y=\"2\" z=\"3\"/>"
+                             "<TrileInstance trileId=\"4\" orientation=\"1\">"
+                             "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position><OverlappedTriles/>"
+                             "</TrileInstance></Entry>";
+
+    const auto description = readInline(level(entry, validArtObject));
+    REQUIRE(description.has_value());
+    REQUIRE(description->m_TrileEmplacements.size() == 1);
+    CHECK(description->m_TrileEmplacements[0].m_Id == 4);
+}
+
+TEST_CASE("readLevel fails the whole level for a broken overlapped trile", "[level]")
+{
+    const auto broken = [](const QByteArray& overlapped)
+    {
+        return level(validTrile
+                         + "<Entry><TrileEmplacement x=\"1\" y=\"2\" z=\"3\"/><TrileInstance trileId=\"4\" orientation=\"1\">"
+                           "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position><OverlappedTriles>"
+                           "<TrileInstance trileId=\"6\" orientation=\"2\"><Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/>"
+                           "</Position></TrileInstance>"
+                         + overlapped + "</OverlappedTriles></TrileInstance></Entry>",
+                     validArtObject);
+    };
+    const QByteArray position = "<Position><Vector3 x=\"1\" y=\"2\" z=\"3\"/></Position>";
+    const std::string instance = "Level/Triles/Entry[2]/TrileInstance/OverlappedTriles/TrileInstance[2]";
+
+    checkFailures({
+        {"no Position", broken("<TrileInstance trileId=\"4\" orientation=\"1\"/>"), ErrorKind::MissingElement,
+         instance + "/Position"},
+        {"no Vector3", broken("<TrileInstance trileId=\"4\" orientation=\"1\"><Position/></TrileInstance>"),
+         ErrorKind::MissingElement, instance + "/Position/Vector3"},
+        {"trileId missing", broken("<TrileInstance orientation=\"1\">" + position + "</TrileInstance>"),
+         ErrorKind::MissingAttribute, instance + "@trileId"},
+        {"trileId not an integer", broken("<TrileInstance trileId=\"1.5\" orientation=\"1\">" + position + "</TrileInstance>"),
+         ErrorKind::BadValue, instance + "@trileId"},
+        {"orientation missing", broken("<TrileInstance trileId=\"4\">" + position + "</TrileInstance>"),
+         ErrorKind::MissingAttribute, instance + "@orientation"},
+        {"orientation 4", broken("<TrileInstance trileId=\"4\" orientation=\"4\">" + position + "</TrileInstance>"),
+         ErrorKind::BadValue, instance + "@orientation"},
+        {"position z not a number",
+         broken("<TrileInstance trileId=\"4\" orientation=\"1\"><Position><Vector3 x=\"1\" y=\"2\" z=\"\"/></Position>"
+                "</TrileInstance>"),
+         ErrorKind::BadValue, instance + "/Position/Vector3@z"},
+        {"other element", broken("<Comment/>"), ErrorKind::MissingAttribute,
+         "Level/Triles/Entry[2]/TrileInstance/OverlappedTriles/Comment@trileId"},
+    });
+}
+
 TEST_CASE("readLevel fails the whole level for a broken art object entry", "[level]")
 {
     const auto broken = [](const QByteArray& instance) {
