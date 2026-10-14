@@ -1552,7 +1552,7 @@ policy decided in Open Questions.
 ### Checkpoint: Complete
 - [x] All tasks checked; default and golden tests pass on the latest golden version.
 - [x] Every golden version change is explained by a Phase 2 task.
-- [ ] Ready for review / PR.
+- [x] Ready for review / PR.
 
 ---
 
